@@ -1,9 +1,9 @@
-import express from `express`; //imports Express.js
+import express from 'express'; //imports Express.js
 
 const app = express();  //creates application instance
-const port = env.port;
+const port = process.env.PORT;
 
-app.get(`/HelloWorldTest/`, (req, res) => {
+app.get(`/`, (req, res) => {
     res.send(`Hello World`);
 });
 
