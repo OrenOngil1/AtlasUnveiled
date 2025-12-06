@@ -1,0 +1,1178 @@
+================================================================================
+                    ATLAS UNVEILED - COMPLETE PROJECT EXPLANATION
+================================================================================
+
+TABLE OF CONTENTS
+-----------------
+1. Project Overview - How It All Connects
+2. How React Becomes an Android App
+3. What is Vite?
+4. Understanding package.json
+5. Understanding index.html
+6. Understanding capacitor.config.json
+7. Deep Dive into App.jsx
+8. The Complete Flow
+
+================================================================================
+1. PROJECT OVERVIEW - HOW IT ALL CONNECTS
+================================================================================
+
+The project consists of just 5 important files:
+
+    frontend/
+    ├── package.json           → Project configuration & dependencies
+    ├── vite.config.js         → Build tool configuration
+    ├── index.html             → The single HTML page
+    ├── capacitor.config.json  → Android bridge configuration
+    └── src/
+        ├── main.jsx           → React entry point
+        └── App.jsx            → The actual application code
+
+THE MAGIC FLOW:
+---------------
+                                                         
+    [Your Code]     [Build Tool]      [Bridge]        [Final Output]
+        │               │               │                  │
+    App.jsx  ──────► Vite ──────► Capacitor ──────► Android APK
+        │               │               │                  │
+    (React)         (Bundles)      (Wraps in           (Native
+                    (Minifies)      WebView)             App)
+
+
+================================================================================
+2. HOW REACT BECOMES AN ANDROID APP
+================================================================================
+
+This is the key question: "How did I suddenly have this in Android Studio?"
+
+STEP BY STEP PROCESS:
+---------------------
+
+Step 1: You write React code (App.jsx)
+        ↓
+Step 2: "npm run build" - Vite compiles React into plain HTML/CSS/JS
+        ↓
+        Creates a "dist" folder with:
+        - index.html
+        - assets/index-xxxx.js (your compiled code)
+        - assets/index-xxxx.css (your styles)
+        ↓
+Step 3: "npx cap add android" - Capacitor creates Android project
+        ↓
+        Creates "android" folder with full Android Studio project
+        ↓
+Step 4: "npx cap sync android" - Copies "dist" folder INTO Android project
+        ↓
+        Your web files go to: android/app/src/main/assets/public/
+        ↓
+Step 5: "npx cap open android" - Opens in Android Studio
+        ↓
+Step 6: Android Studio builds the APK
+
+
+WHAT CAPACITOR ACTUALLY DOES:
+-----------------------------
+
+Capacitor creates an Android app that contains a WebView (like a built-in 
+browser). Your React app runs INSIDE this WebView.
+
+    ┌─────────────────────────────────────┐
+    │         Android App (APK)           │
+    │  ┌───────────────────────────────┐  │
+    │  │          WebView              │  │
+    │  │  ┌─────────────────────────┐  │  │
+    │  │  │    Your React App       │  │  │
+    │  │  │    (HTML/CSS/JS)        │  │  │
+    │  │  └─────────────────────────┘  │  │
+    │  └───────────────────────────────┘  │
+    │                                     │
+    │  Capacitor Plugins (GPS, Camera)    │
+    └─────────────────────────────────────┘
+
+The WebView is like Chrome browser embedded in your app. Your React code 
+runs in it, but Capacitor provides "bridges" to native features like GPS.
+
+
+================================================================================
+3. WHAT IS VITE?
+================================================================================
+
+WHAT IT IS:
+-----------
+Vite (French word for "fast") is a BUILD TOOL for web projects.
+
+THE PROBLEM IT SOLVES:
+----------------------
+Browsers don't understand:
+- JSX syntax (<div className="foo">)
+- Modern JavaScript features
+- import/export statements
+- React components
+
+You need something to TRANSFORM your code into browser-compatible code.
+
+WHAT VITE DOES:
+---------------
+
+    YOUR CODE                          BROWSER CODE
+    ----------                         ------------
+    import React from 'react'    →     (bundled into one file)
+    
+    function App() {             →     function App() {
+      return <div>Hello</div>            return React.createElement(
+    }                                      'div', null, 'Hello'
+                                         )
+                                       }
+    
+    export default App           →     (handled internally)
+
+WHY VITE INSTEAD OF OTHERS:
+---------------------------
+
+Before Vite, people used Webpack (Create React App uses Webpack).
+
+    Webpack:
+    - Slow startup (10-30 seconds)
+    - Bundles EVERYTHING before starting
+    - Complex configuration
+    
+    Vite:
+    - Fast startup (<1 second)
+    - Only processes files when needed
+    - Simple configuration
+    - Native ES modules support
+
+VITE IN DEVELOPMENT VS PRODUCTION:
+----------------------------------
+
+Development (npm run dev):
+- Starts a local server
+- Hot Module Replacement (changes appear instantly)
+- No bundling - serves files directly
+- Source maps for debugging
+
+Production (npm run build):
+- Creates optimized bundle
+- Minifies code (removes whitespace, shortens variables)
+- Tree-shaking (removes unused code)
+- Outputs to "dist" folder
+
+
+================================================================================
+4. UNDERSTANDING package.json
+================================================================================
+
+package.json is the PROJECT CONFIGURATION FILE. It tells npm (Node Package 
+Manager) everything about your project.
+
+HERE'S OUR FILE WITH EXPLANATIONS:
+----------------------------------
+
+{
+  "name": "atlas-unveiled-simple",     ← Project name (used for identification)
+  
+  "private": true,                     ← Prevents accidental publish to npm
+  
+  "version": "1.0.0",                  ← Version number (semantic versioning)
+  
+  "type": "module",                    ← Use ES modules (import/export syntax)
+  
+  "scripts": {                         ← Commands you can run
+    "dev": "vite",                     ← npm run dev → starts dev server
+    "build": "vite build",             ← npm run build → creates production build
+    "preview": "vite preview"          ← npm run preview → preview production build
+  },
+  
+  "dependencies": {                    ← Packages needed to RUN the app
+    "maplibre-gl": "^4.5.0",          ← Map library
+    "react": "^18.3.1",               ← React library
+    "react-dom": "^18.3.1",           ← React DOM renderer
+    "@capacitor/core": "^7.0.0",      ← Capacitor core functionality
+    "@capacitor/geolocation": "^7.0.0" ← Capacitor GPS plugin
+  },
+  
+  "devDependencies": {                 ← Packages needed only for DEVELOPMENT
+    "@capacitor/cli": "^7.0.0",       ← Capacitor command line tool
+    "@vitejs/plugin-react": "^4.3.1", ← Vite plugin to understand React/JSX
+    "vite": "^5.4.1"                  ← Vite build tool
+  }
+}
+
+HOW DEPENDENCIES WORK:
+----------------------
+
+When you run "npm install":
+
+1. npm reads package.json
+2. Downloads all packages from npmjs.com
+3. Puts them in "node_modules" folder
+4. Creates package-lock.json (exact versions used)
+
+The "^" symbol means "compatible version":
+- "^4.5.0" means any version 4.x.x (4.5.0, 4.5.1, 4.6.0, etc.)
+- This allows minor updates without breaking your app
+
+DEPENDENCIES vs DEV DEPENDENCIES:
+---------------------------------
+
+dependencies:       Included in final app, needed at runtime
+devDependencies:    Only needed during development, not in final app
+
+Example:
+- React is a dependency (app needs it to run)
+- Vite is a devDependency (only needed to build, not to run)
+
+
+================================================================================
+5. UNDERSTANDING index.html
+================================================================================
+
+This is the ONLY HTML file in your entire app. React is a "Single Page 
+Application" (SPA) - everything happens in one HTML page.
+
+HERE'S OUR FILE WITH EXPLANATIONS:
+----------------------------------
+
+<!DOCTYPE html>                        ← Tells browser this is HTML5
+<html lang="en">                       ← Root element, English language
+  <head>
+    <meta charset="UTF-8" />           ← Character encoding (supports all languages)
+    
+    <meta name="viewport" 
+          content="width=device-width,  ← Page width = device width
+                   initial-scale=1.0,   ← No initial zoom
+                   viewport-fit=cover,  ← Extend behind notches (iPhone)
+                   user-scalable=no"    ← Disable pinch zoom (for app feel)
+    />
+    
+    <title>Atlas Unveiled</title>       ← Browser tab title
+    
+    <!-- MapLibre CSS - Required for map to display correctly -->
+    <link href="https://unpkg.com/maplibre-gl@4.5.0/dist/maplibre-gl.css" 
+          rel="stylesheet" />
+    
+    <style>
+      /* Remove all default margins/padding */
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      
+      /* Make everything full height */
+      html, body, #root { 
+        width: 100%; 
+        height: 100%; 
+        overflow: hidden;    ← No scrollbars
+      }
+    </style>
+  </head>
+  
+  <body>
+    <div id="root"></div>              ← React mounts here (empty div)
+    
+    <script type="module"               ← Load as ES module
+            src="/src/main.jsx">        ← Entry point for React
+    </script>
+  </body>
+</html>
+
+HOW IT WORKS:
+-------------
+
+1. Browser loads index.html
+2. Browser sees <script src="/src/main.jsx">
+3. Vite intercepts this request
+4. Vite transforms JSX → JavaScript on-the-fly
+5. React runs and fills the <div id="root"> with content
+
+THE EMPTY DIV PATTERN:
+----------------------
+
+    Initial HTML:           After React Runs:
+    
+    <div id="root">         <div id="root">
+                              <div style="...">
+    </div>                      <div ref="mapContainer">...</div>
+                                <div class="status-bar">...</div>
+                                <button>📍</button>
+                              </div>
+                            </div>
+
+React REPLACES the empty div with your entire app!
+
+
+================================================================================
+6. UNDERSTANDING capacitor.config.json
+================================================================================
+
+This file tells Capacitor how to create the Android app.
+
+HERE'S OUR FILE WITH EXPLANATIONS:
+----------------------------------
+
+{
+  "appId": "com.atlasunveiled.app",    ← Unique app identifier
+                                         (like a domain in reverse)
+                                         Used by Play Store to identify app
+  
+  "appName": "Atlas Unveiled",          ← Name shown under app icon
+  
+  "webDir": "dist",                     ← Where to find built web files
+                                         (Vite outputs to "dist" folder)
+  
+  "server": {
+    "androidScheme": "https"            ← Use HTTPS inside WebView
+                                         (required for geolocation API)
+  }
+}
+
+WHAT EACH FIELD DOES:
+---------------------
+
+appId:
+- Must be unique worldwide
+- Format: com.company.appname
+- Cannot change after publishing to Play Store
+- Used for: app signing, Play Store listing, permissions
+
+appName:
+- Displayed to users
+- Under the app icon
+- In app settings
+- Can be changed later
+
+webDir:
+- Tells Capacitor where your built website files are
+- When you run "npm run build", Vite creates "dist" folder
+- Capacitor copies this folder into the Android project
+
+server.androidScheme:
+- Determines the protocol used inside WebView
+- "https" is required for:
+  - Geolocation API
+  - Other security-sensitive APIs
+- Without this, GPS won't work!
+
+
+================================================================================
+7. DEEP DIVE INTO App.jsx
+================================================================================
+
+This is where ALL the application logic lives. Let's go through every line.
+
+-------------------------------------------------------------------------------
+SECTION 1: IMPORTS
+-------------------------------------------------------------------------------
+
+import { useEffect, useRef, useState } from 'react'
+import maplibregl from 'maplibre-gl'
+
+EXPLANATION:
+
+useEffect:  
+  - React "hook" for side effects
+  - Runs code AFTER component renders
+  - Used for: API calls, subscriptions, DOM manipulation
+  - Like saying "after the component appears, do this..."
+
+useRef:
+  - Creates a persistent reference that survives re-renders
+  - Like a "box" that holds a value
+  - Changing it does NOT cause re-render
+  - Used for: DOM elements, timers, previous values
+
+useState:
+  - Creates reactive state
+  - When state changes, component RE-RENDERS
+  - Returns [currentValue, setterFunction]
+  - Used for: anything that should update the UI when changed
+
+maplibregl:
+  - The map library
+  - Renders interactive maps using WebGL
+  - Open-source fork of Mapbox GL JS
+
+-------------------------------------------------------------------------------
+SECTION 2: CONFIGURATION CONSTANTS
+-------------------------------------------------------------------------------
+
+const FOG_COLOR = '#1a1a2e'
+const FOG_OPACITY = 0.85
+const CLEAR_RADIUS = 50
+const UPDATE_INTERVAL = 5000
+const MIN_DISTANCE = 5
+
+EXPLANATION:
+
+FOG_COLOR:
+  - Hexadecimal color code
+  - #1a1a2e is a dark blue-gray
+  - Format: #RRGGBB (Red, Green, Blue)
+  - 1a = 26 (out of 255) for each channel
+
+FOG_OPACITY:
+  - Transparency level (0 to 1)
+  - 0 = invisible, 1 = fully opaque
+  - 0.85 = 85% opaque (slightly see-through)
+
+CLEAR_RADIUS:
+  - Meters to clear around user
+  - 50 meters ≈ half a football field
+  - Larger = more visibility, less mystery
+
+UPDATE_INTERVAL:
+  - Milliseconds between GPS checks
+  - 5000ms = 5 seconds
+  - Balance between accuracy and battery life
+
+MIN_DISTANCE:
+  - Minimum meters to move before saving new point
+  - Prevents saving hundreds of points when standing still
+  - 5 meters is a reasonable walking threshold
+
+-------------------------------------------------------------------------------
+SECTION 3: COMPONENT FUNCTION & REFS
+-------------------------------------------------------------------------------
+
+export default function App() {
+  const mapContainer = useRef(null)
+  const map = useRef(null)
+  const fogCanvas = useRef(null)
+  const userMarker = useRef(null)
+  const trackingInterval = useRef(null)
+  const exploredPointsRef = useRef([])
+
+EXPLANATION:
+
+export default function App():
+  - "export default" makes this the main export of the file
+  - Other files can import it: import App from './App'
+  - "function App()" defines a React functional component
+  - Components are functions that return JSX
+
+Why useRef for these:
+  - mapContainer: Need reference to DOM element for MapLibre
+  - map: MapLibre instance - don't want to recreate on every render
+  - fogCanvas: Canvas DOM element for drawing fog
+  - userMarker: MapLibre marker instance
+  - trackingInterval: setInterval ID (to clear it later)
+  - exploredPointsRef: Access points in interval callback (closure issue)
+
+THE CLOSURE PROBLEM:
+  When you create setInterval, it captures the state value at that moment.
+  Even if state updates, the interval still sees the OLD value.
+  
+  Solution: Use a ref that we manually keep in sync with state.
+  The interval reads from the ref, which always has the current value.
+
+-------------------------------------------------------------------------------
+SECTION 4: STATE DECLARATIONS
+-------------------------------------------------------------------------------
+
+  const [exploredPoints, setExploredPoints] = useState([])
+  const [currentPos, setCurrentPos] = useState(null)
+  const [status, setStatus] = useState('Requesting location permission...')
+
+EXPLANATION:
+
+exploredPoints:
+  - Array of {lat, lng, timestamp} objects
+  - Each object represents a place the user has been
+  - When this changes → fog re-renders with new holes
+
+currentPos:
+  - Current GPS position {lat, lng}
+  - null until first position received
+  - Used for "center on user" button
+
+status:
+  - Text shown in the status bar
+  - Tells user what's happening
+  - Examples: "Requesting permission...", "Tracking...", "Error..."
+
+-------------------------------------------------------------------------------
+SECTION 5: KEEPING REF IN SYNC
+-------------------------------------------------------------------------------
+
+  useEffect(() => {
+    exploredPointsRef.current = exploredPoints
+  }, [exploredPoints])
+
+EXPLANATION:
+
+This solves the "closure problem" mentioned earlier.
+
+Every time exploredPoints state changes:
+1. This useEffect runs
+2. Updates the ref to match the state
+3. Now the interval can read the current value from the ref
+
+The [exploredPoints] is the "dependency array":
+- useEffect only runs when items in this array change
+- Empty array [] = run once on mount
+- No array = run on every render
+- [exploredPoints] = run when exploredPoints changes
+
+-------------------------------------------------------------------------------
+SECTION 6: MAP INITIALIZATION
+-------------------------------------------------------------------------------
+
+  useEffect(() => {
+    if (map.current) return  // Only run once
+
+    map.current = new maplibregl.Map({
+      container: mapContainer.current,
+      style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
+      center: [34.7818, 32.0853],
+      zoom: 15,
+      attributionControl: false,
+    })
+
+    map.current.on('load', () => {
+      createFogCanvas()
+      requestLocationPermission()
+    })
+
+    map.current.on('move', renderFog)
+    map.current.on('zoom', renderFog)
+
+    window.addEventListener('resize', handleResize)
+
+    return () => {
+      window.removeEventListener('resize', handleResize)
+      if (trackingInterval.current) {
+        clearInterval(trackingInterval.current)
+      }
+      map.current?.remove()
+    }
+  }, [])
+
+EXPLANATION:
+
+if (map.current) return:
+  - Prevents running twice (React strict mode calls effects twice)
+  - If map already exists, don't create another
+
+new maplibregl.Map({...}):
+  - Creates the map instance
+  - container: Which DOM element to put the map in
+  - style: URL to map style JSON (defines colors, roads, labels)
+  - center: [longitude, latitude] - initial center point
+  - zoom: Initial zoom level (0=world, 20=building level)
+  - attributionControl: false = hide "© OpenStreetMap" text
+
+map.current.on('load', ...):
+  - Runs when map tiles finish loading
+  - Safe to add layers/markers after this
+  - We create fog canvas and start GPS here
+
+map.current.on('move', renderFog):
+  - When user pans the map, re-render fog
+  - Without this, fog wouldn't update as you scroll
+
+map.current.on('zoom', renderFog):
+  - When user zooms, re-render fog
+  - Circle sizes need to recalculate at different zooms
+
+window.addEventListener('resize', ...):
+  - When window resizes, update canvas size
+  - Important for responsive design
+
+return () => {...}:
+  - CLEANUP FUNCTION
+  - Runs when component unmounts (removed from page)
+  - Removes event listeners (prevents memory leaks)
+  - Clears interval (stops GPS polling)
+  - Removes map (frees memory)
+
+-------------------------------------------------------------------------------
+SECTION 7: LOCATION PERMISSION REQUEST
+-------------------------------------------------------------------------------
+
+  const requestLocationPermission = async () => {
+    if (!navigator.geolocation) {
+      setStatus('❌ Geolocation not supported in this browser')
+      return
+    }
+
+    setStatus('📍 Requesting location permission...')
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setStatus('✅ Permission granted! Tracking started.')
+        handleNewPosition(position)
+        
+        const { latitude, longitude } = position.coords
+        map.current?.flyTo({ center: [longitude, latitude], zoom: 16 })
+        
+        startContinuousTracking()
+      },
+      (error) => {
+        handleGeolocationError(error)
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 0,
+      }
+    )
+  }
+
+EXPLANATION:
+
+navigator.geolocation:
+  - Browser's Geolocation API
+  - Built into all modern browsers
+  - Requires user permission
+
+getCurrentPosition():
+  - Gets position ONCE
+  - Triggers browser permission prompt
+  - Three arguments: success callback, error callback, options
+
+Success callback (position):
+  - Called when permission granted AND position obtained
+  - position.coords contains: latitude, longitude, accuracy, etc.
+  - We update status, handle the position, and fly map to user
+
+Error callback (error):
+  - Called when permission denied OR position unavailable
+  - error.code tells us what went wrong
+
+Options object:
+  - enableHighAccuracy: true = use GPS (slower but precise)
+  - timeout: 15000 = wait up to 15 seconds
+  - maximumAge: 0 = don't use cached position, get fresh one
+
+flyTo():
+  - Animated pan/zoom to a location
+  - Smoother than instant jump
+
+-------------------------------------------------------------------------------
+SECTION 8: CONTINUOUS TRACKING
+-------------------------------------------------------------------------------
+
+  const startContinuousTracking = () => {
+    if (trackingInterval.current) {
+      clearInterval(trackingInterval.current)
+    }
+
+    trackingInterval.current = setInterval(() => {
+      navigator.geolocation.getCurrentPosition(
+        handleNewPosition,
+        (error) => {
+          if (error.code !== error.TIMEOUT) {
+            handleGeolocationError(error)
+          }
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0,
+        }
+      )
+    }, UPDATE_INTERVAL)
+  }
+
+EXPLANATION:
+
+clearInterval():
+  - Stops any existing interval
+  - Prevents multiple intervals running simultaneously
+
+setInterval():
+  - Runs a function repeatedly at fixed intervals
+  - Returns an ID (used to stop it later)
+  - UPDATE_INTERVAL = 5000ms = every 5 seconds
+
+Why getCurrentPosition in interval instead of watchPosition:
+  - watchPosition is event-based (fires when position changes)
+  - On desktop, position rarely changes, so it might never fire
+  - getCurrentPosition forces a fresh reading every 5 seconds
+  - More predictable behavior
+
+error.code !== error.TIMEOUT:
+  - Ignore timeout errors (just means GPS was slow)
+  - Still show other errors (permission revoked, etc.)
+
+-------------------------------------------------------------------------------
+SECTION 9: HANDLING NEW POSITIONS
+-------------------------------------------------------------------------------
+
+  const handleNewPosition = (position) => {
+    const { latitude, longitude, accuracy } = position.coords
+    
+    setCurrentPos({ lat: latitude, lng: longitude })
+    
+    const pointCount = exploredPointsRef.current.length
+    setStatus(`📍 Tracking (±${Math.round(accuracy)}m) | ${pointCount} points explored`)
+
+    updateUserMarker(latitude, longitude)
+
+    if (shouldSavePoint(latitude, longitude)) {
+      addExploredPoint(latitude, longitude)
+    }
+  }
+
+EXPLANATION:
+
+Destructuring:
+  - const { latitude, longitude, accuracy } = position.coords
+  - Extracts specific properties from an object
+  - Same as: const latitude = position.coords.latitude
+
+setCurrentPos():
+  - Updates the current position state
+  - Enables the "center on me" button
+
+exploredPointsRef.current.length:
+  - Using ref instead of state
+  - Because this function is called from setInterval
+  - State would be stale due to closure
+
+updateUserMarker():
+  - Moves the blue dot on the map
+
+shouldSavePoint():
+  - Checks if user moved enough distance
+  - Returns true/false
+
+addExploredPoint():
+  - Saves the point to state
+  - Triggers fog re-render
+
+-------------------------------------------------------------------------------
+SECTION 10: DISTANCE CALCULATION
+-------------------------------------------------------------------------------
+
+  const shouldSavePoint = (lat, lng) => {
+    if (!lastSavedPos.current) return true
+
+    const distance = calculateDistance(
+      lastSavedPos.current.lat,
+      lastSavedPos.current.lng,
+      lat,
+      lng
+    )
+
+    return distance >= MIN_DISTANCE
+  }
+
+  // At bottom of file:
+  function calculateDistance(lat1, lng1, lat2, lng2) {
+    const R = 6371000  // Earth radius in meters
+    const dLat = (lat2 - lat1) * Math.PI / 180
+    const dLng = (lng2 - lng1) * Math.PI / 180
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLng/2) * Math.sin(dLng/2)
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+    return R * c
+  }
+
+EXPLANATION:
+
+shouldSavePoint():
+  - First point always saved (no previous point to compare)
+  - Otherwise, calculate distance from last saved point
+  - Only save if moved >= MIN_DISTANCE meters
+
+calculateDistance() - The Haversine Formula:
+  - Calculates distance between two points on a sphere
+  - Accounts for Earth's curvature
+  - Input: two lat/lng pairs
+  - Output: distance in meters
+
+The math:
+  - R = Earth's radius (6,371 km)
+  - Convert degrees to radians (× π/180)
+  - Use spherical trigonometry
+  - Result is arc length on sphere surface
+
+Why not just Pythagorean theorem?
+  - Earth is curved, not flat
+  - At small distances it wouldn't matter much
+  - But Haversine is more accurate and correct
+
+-------------------------------------------------------------------------------
+SECTION 11: ADDING EXPLORED POINTS
+-------------------------------------------------------------------------------
+
+  const addExploredPoint = (lat, lng) => {
+    const newPoint = { lat, lng, timestamp: Date.now() }
+    setExploredPoints(prev => [...prev, newPoint])
+    lastSavedPos.current = { lat, lng }
+  }
+
+EXPLANATION:
+
+Creating point object:
+  - lat, lng: coordinates
+  - timestamp: when it was recorded (for potential future use)
+
+setExploredPoints(prev => [...prev, newPoint]):
+  - Functional update (receives previous state)
+  - [...prev, newPoint] = spread old array + add new item
+  - Creates NEW array (important for React to detect change)
+
+Why not prev.push(newPoint)?
+  - push() mutates the original array
+  - React wouldn't detect the change (same array reference)
+  - Always create new arrays/objects for state updates
+
+lastSavedPos.current = {...}:
+  - Update the ref for next distance check
+  - Using ref because we need this in shouldSavePoint
+
+-------------------------------------------------------------------------------
+SECTION 12: FOG CANVAS CREATION
+-------------------------------------------------------------------------------
+
+  const createFogCanvas = () => {
+    const canvas = document.createElement('canvas')
+    canvas.id = 'fog-canvas'
+    canvas.style.cssText = `
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 1;
+    `
+    
+    const rect = mapContainer.current.getBoundingClientRect()
+    canvas.width = rect.width * window.devicePixelRatio
+    canvas.height = rect.height * window.devicePixelRatio
+    
+    mapContainer.current.appendChild(canvas)
+    fogCanvas.current = canvas
+    
+    renderFog()
+  }
+
+EXPLANATION:
+
+document.createElement('canvas'):
+  - Creates a new <canvas> element programmatically
+  - Canvas is HTML5 element for drawing graphics
+
+CSS positioning:
+  - position: absolute = removed from normal flow
+  - top/left: 0 = positioned at top-left of parent
+  - width/height: 100% = covers entire parent
+  - pointer-events: none = clicks pass through to map
+  - z-index: 1 = above map but below UI elements
+
+Canvas size:
+  - getBoundingClientRect() = gets element dimensions
+  - devicePixelRatio = screen pixel density (2 for Retina)
+  - Multiply for crisp rendering on high-DPI screens
+
+Why separate width/height attributes:
+  - CSS width/height = how big it APPEARS
+  - Canvas width/height = actual pixel resolution
+  - For sharp graphics: canvas size = CSS size × devicePixelRatio
+
+-------------------------------------------------------------------------------
+SECTION 13: RENDERING THE FOG
+-------------------------------------------------------------------------------
+
+  const renderFog = () => {
+    const canvas = fogCanvas.current
+    if (!canvas || !map.current) return
+
+    const ctx = canvas.getContext('2d')
+    const dpr = window.devicePixelRatio
+    const points = exploredPointsRef.current
+
+    // Step 1: Clear everything
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    
+    // Step 2: Fill with fog color
+    ctx.fillStyle = FOG_COLOR
+    ctx.globalAlpha = FOG_OPACITY
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+    // Step 3: Prepare to punch holes
+    ctx.globalAlpha = 1
+    ctx.globalCompositeOperation = 'destination-out'
+
+    // Step 4: Draw holes for each explored point
+    points.forEach(point => {
+      const screenPos = map.current.project([point.lng, point.lat])
+      const radiusPixels = metersToPixels(point.lat, CLEAR_RADIUS, map.current.getZoom())
+
+      const gradient = ctx.createRadialGradient(
+        screenPos.x * dpr, screenPos.y * dpr, 0,
+        screenPos.x * dpr, screenPos.y * dpr, radiusPixels * dpr
+      )
+      gradient.addColorStop(0, 'rgba(0,0,0,1)')
+      gradient.addColorStop(0.7, 'rgba(0,0,0,1)')
+      gradient.addColorStop(1, 'rgba(0,0,0,0)')
+
+      ctx.fillStyle = gradient
+      ctx.beginPath()
+      ctx.arc(screenPos.x * dpr, screenPos.y * dpr, radiusPixels * dpr, 0, Math.PI * 2)
+      ctx.fill()
+    })
+
+    // Step 5: Reset drawing mode
+    ctx.globalCompositeOperation = 'source-over'
+  }
+
+EXPLANATION:
+
+getContext('2d'):
+  - Gets 2D drawing context for canvas
+  - Provides methods like fillRect, arc, etc.
+
+clearRect():
+  - Erases entire canvas
+  - Necessary because we redraw from scratch each time
+
+globalAlpha:
+  - Transparency for all subsequent drawing
+  - 0.85 makes fog slightly see-through
+
+fillRect():
+  - Draws a filled rectangle
+  - Covers entire canvas with fog color
+
+globalCompositeOperation = 'destination-out':
+  - THE KEY TO THE FOG EFFECT
+  - Changes how new drawings interact with existing content
+  - 'destination-out' = new shapes ERASE existing pixels
+  - Like an eraser or "hole puncher"
+
+map.current.project():
+  - Converts geographic coordinates to screen pixels
+  - Essential because map can be panned/zoomed
+  - Returns {x, y} in screen coordinates
+
+metersToPixels():
+  - Converts real-world meters to screen pixels
+  - Depends on latitude and zoom level
+  - At zoom 15, 50m might be 100px
+  - At zoom 10, 50m might be 10px
+
+createRadialGradient():
+  - Creates circular gradient
+  - Parameters: x1, y1, r1, x2, y2, r2
+  - From center (r=0) to edge (r=radius)
+
+addColorStop():
+  - Defines colors at positions in gradient
+  - 0 = center, 1 = edge
+  - 0.0: fully opaque (center of cleared area)
+  - 0.7: still opaque (70% from center)
+  - 1.0: transparent (soft edge)
+
+Why gradient instead of solid circle?
+  - Hard edges look artificial
+  - Gradient creates soft "fade" at edges
+  - More natural fog-clearing effect
+
+arc():
+  - Draws a circle (or part of circle)
+  - Parameters: x, y, radius, startAngle, endAngle
+  - 0 to Math.PI * 2 = full circle (360°)
+
+ctx.fill():
+  - Fills the current path (circle)
+  - Combined with 'destination-out', this punches the hole
+
+-------------------------------------------------------------------------------
+SECTION 14: METERS TO PIXELS CONVERSION
+-------------------------------------------------------------------------------
+
+function metersToPixels(lat, meters, zoom) {
+  const earthCircumference = 40075016.686
+  const pixelsPerMeter = (256 * Math.pow(2, zoom)) / 
+    (earthCircumference * Math.cos(lat * Math.PI / 180))
+  return meters * pixelsPerMeter
+}
+
+EXPLANATION:
+
+Why this is needed:
+  - Fog radius is in METERS (real-world unit)
+  - Canvas draws in PIXELS (screen unit)
+  - Conversion depends on zoom and latitude
+
+earthCircumference:
+  - Earth is ~40,075 km around at equator
+  - Used as reference for scale
+
+256 * Math.pow(2, zoom):
+  - Web maps use 256×256 pixel tiles
+  - At zoom 0: world = 1 tile = 256px
+  - At zoom 1: world = 2×2 tiles = 512px
+  - At zoom n: world = 2^n × 256 pixels wide
+
+Math.cos(lat * Math.PI / 180):
+  - Earth is smaller around at higher latitudes
+  - At equator (0°): cos = 1 (full circumference)
+  - At poles (90°): cos = 0 (circumference = 0)
+  - This corrects for latitude distortion
+
+Final calculation:
+  - pixelsPerMeter = total pixels / meters around earth
+  - return meters * pixelsPerMeter = convert our radius
+
+-------------------------------------------------------------------------------
+SECTION 15: USER MARKER
+-------------------------------------------------------------------------------
+
+  const updateUserMarker = (lat, lng) => {
+    if (!map.current) return
+
+    if (!userMarker.current) {
+      const el = document.createElement('div')
+      el.innerHTML = `
+        <div style="...">  <!-- Blue dot -->
+        </div>
+        <div style="...animation: pulse...">  <!-- Pulsing ring -->
+        </div>
+      `
+      el.style.cssText = 'position: relative; width: 20px; height: 20px;'
+
+      userMarker.current = new maplibregl.Marker({ element: el })
+        .setLngLat([lng, lat])
+        .addTo(map.current)
+    } else {
+      userMarker.current.setLngLat([lng, lat])
+    }
+  }
+
+EXPLANATION:
+
+Custom marker:
+  - MapLibre allows custom HTML as markers
+  - We create a div with two children:
+    1. Blue dot (solid circle)
+    2. Pulsing ring (animated expanding circle)
+
+First time (create marker):
+  - Create the DOM element
+  - Create MapLibre Marker with our element
+  - Set position and add to map
+
+Subsequent times (update position):
+  - Just call setLngLat to move existing marker
+  - Much more efficient than recreating
+
+-------------------------------------------------------------------------------
+SECTION 16: JSX RETURN (THE UI)
+-------------------------------------------------------------------------------
+
+  return (
+    <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+      <div ref={mapContainer} style={{ width: '100%', height: '100%' }} />
+      
+      <div style={{...}}>
+        {status}
+      </div>
+      
+      <button onClick={centerOnUser} disabled={!currentPos} style={{...}}>
+        📍
+      </button>
+      
+      <style>{`
+        @keyframes pulse {...}
+      `}</style>
+    </div>
+  )
+
+EXPLANATION:
+
+JSX:
+  - Looks like HTML but it's JavaScript
+  - Gets transformed to React.createElement() calls
+  - Can include JavaScript expressions in {}
+
+Root div:
+  - Container for everything
+  - Full width/height, relative positioning
+  - relative = children can position absolute relative to this
+
+Map container div:
+  - ref={mapContainer} connects this to our useRef
+  - MapLibre renders into this div
+
+Status bar div:
+  - Shows current status text
+  - Positioned at top with absolute positioning
+
+Center button:
+  - onClick={centerOnUser} = handler function
+  - disabled={!currentPos} = disabled until we have a position
+  - 📍 = emoji as button content
+
+Inline <style> tag:
+  - CSS keyframes for pulse animation
+  - Could be in separate CSS file
+  - Inline keeps everything in one file for simplicity
+
+
+================================================================================
+8. THE COMPLETE FLOW
+================================================================================
+
+When you open the app:
+
+1. INITIALIZATION
+   - React renders App component
+   - useEffect runs (empty dependency array = once)
+   - Map is created
+   
+2. MAP LOADS
+   - 'load' event fires
+   - createFogCanvas() creates canvas overlay
+   - requestLocationPermission() called
+
+3. PERMISSION
+   - Browser shows permission dialog
+   - User clicks "Allow"
+   - Success callback runs
+
+4. FIRST POSITION
+   - handleNewPosition() processes coordinates
+   - updateUserMarker() creates blue dot
+   - addExploredPoint() saves first point
+   - renderFog() clears fog at that point
+   - map.flyTo() centers on user
+
+5. CONTINUOUS TRACKING
+   - setInterval starts (every 5 seconds)
+   - Each interval: getCurrentPosition()
+   - If moved >= 5 meters: save new point
+   - Each new point: fog re-renders
+
+6. USER INTERACTION
+   - User can pan/zoom map (fog re-renders)
+   - User can tap 📍 to center on themselves
+   - Fog accumulates more clear areas over time
+
+7. RESULT
+   - Map visible only where user has been
+   - Creates sense of exploration and discovery
+   - Pokemon GO fog-of-war effect!
+
+
+================================================================================
+END OF EXPLANATION
+================================================================================
+
+This document covers every aspect of the Atlas Unveiled frontend research.
+The same principles apply when building the Android APK - Capacitor just
+wraps this web app in a native shell, giving it access to real GPS hardware.
+
+Key Technologies:
+- React: UI components and state management
+- MapLibre GL JS: Map rendering with WebGL
+- Canvas API: Drawing the fog overlay
+- Geolocation API: Getting GPS coordinates
+- Vite: Building and bundling
+- Capacitor: Web → Native bridge
+
+Total lines of actual application code: ~250 lines in App.jsx
+Everything else is configuration and boilerplate.
