@@ -4,12 +4,12 @@ import maplibregl from 'maplibre-gl'
 
 // Fog settings
 const FOG_COLOR = '#1a1a2e'
-const FOG_OPACITY = 0.85
-const CLEAR_RADIUS = 50 // meters
+const FOG_OPACITY = 1
+const CLEAR_RADIUS = 40 // meters
 
 // Tracking settings
 const UPDATE_INTERVAL = 5000 // 5 seconds
-const MIN_DISTANCE = 5 // minimum meters to move before adding new point
+const MIN_DISTANCE = 10 // minimum meters to move before adding new point
 
 export default function App() {
   // Refs
