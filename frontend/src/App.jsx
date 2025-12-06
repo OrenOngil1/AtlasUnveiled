@@ -2,14 +2,14 @@ import { useEffect, useRef, useState } from 'react'
 import maplibregl from 'maplibre-gl'
 
 
-
 // Fog settings
 const FOG_COLOR = '#1a1a2e'
 const FOG_OPACITY = 0.85
 const CLEAR_RADIUS = 50 // meters
 
-// Minimum distance to move before adding new point (meters)
-const MIN_DISTANCE = 5
+// Tracking settings
+const UPDATE_INTERVAL = 5000 // 5 seconds
+const MIN_DISTANCE = 5 // minimum meters to move before adding new point
 
 export default function App() {
   // Refs
@@ -17,15 +17,21 @@ export default function App() {
   const map = useRef(null)
   const fogCanvas = useRef(null)
   const userMarker = useRef(null)
+  const trackingInterval = useRef(null)
+  const exploredPointsRef = useRef([]) // Ref to access in interval
   
   // State
   const [exploredPoints, setExploredPoints] = useState([])
   const [currentPos, setCurrentPos] = useState(null)
-  const [isTracking, setIsTracking] = useState(false)
-  const [status, setStatus] = useState('Press Start to begin exploring')
+  const [status, setStatus] = useState('Requesting location permission...')
   
-  // Last saved position (to check distance)
+  // Last saved position
   const lastSavedPos = useRef(null)
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    exploredPointsRef.current = exploredPoints
+  }, [exploredPoints])
 
 
   useEffect(() => {
@@ -35,18 +41,18 @@ export default function App() {
     map.current = new maplibregl.Map({
       container: mapContainer.current,
       style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
-      center: [34.7818, 32.0853], // Tel Aviv default
+      center: [34.7818, 32.0853], // Default center
       zoom: 15,
       attributionControl: false,
     })
 
-    // When map loads, create fog canvas
+    // When map loads, create fog and start tracking
     map.current.on('load', () => {
       createFogCanvas()
-      setStatus('Map loaded. Press Start to begin exploring!')
+      requestLocationPermission()
     })
 
-    // Re-render fog when map moves
+    // Re-render fog when map moves/zooms
     map.current.on('move', renderFog)
     map.current.on('zoom', renderFog)
 
@@ -55,9 +61,101 @@ export default function App() {
 
     return () => {
       window.removeEventListener('resize', handleResize)
+      if (trackingInterval.current) {
+        clearInterval(trackingInterval.current)
+      }
       map.current?.remove()
     }
   }, [])
+
+
+  const requestLocationPermission = async () => {
+    if (!navigator.geolocation) {
+      setStatus('Geolocation not supported in this browser')
+      return
+    }
+
+    setStatus('Requesting location permission...')
+
+    // browser permission prompt
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setStatus('Permission granted! Tracking started.')
+        handleNewPosition(position)
+        
+        // Center map on user
+        const { latitude, longitude } = position.coords
+        map.current?.flyTo({ center: [longitude, latitude], zoom: 16 })
+        
+        // Start continuous tracking every 5 seconds
+        startContinuousTracking()
+      },
+      (error) => {
+        handleGeolocationError(error)
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 0,
+      }
+    )
+  }
+
+
+  const startContinuousTracking = () => {
+    if (trackingInterval.current) {
+      clearInterval(trackingInterval.current)
+    }
+
+    trackingInterval.current = setInterval(() => {
+      navigator.geolocation.getCurrentPosition(
+        handleNewPosition,
+        (error) => {
+          if (error.code !== error.TIMEOUT) {
+            handleGeolocationError(error)
+          }
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0,
+        }
+      )
+    }, UPDATE_INTERVAL)
+  }
+
+
+  const handleNewPosition = (position) => {
+    const { latitude, longitude, accuracy } = position.coords
+    
+    setCurrentPos({ lat: latitude, lng: longitude })
+    
+    const pointCount = exploredPointsRef.current.length
+    setStatus(`Tracking (±${Math.round(accuracy)}m) | ${pointCount} points explored`)
+
+    updateUserMarker(latitude, longitude)
+
+    if (shouldSavePoint(latitude, longitude)) {
+      addExploredPoint(latitude, longitude)
+    }
+  }
+
+
+  const handleGeolocationError = (error) => {
+    switch (error.code) {
+      case error.PERMISSION_DENIED:
+        setStatus('Permission denied. Please allow location access and refresh the page.')
+        break
+      case error.POSITION_UNAVAILABLE:
+        setStatus('Location unavailable. Check GPS/Location settings.')
+        break
+      case error.TIMEOUT:
+        setStatus('Getting location...')
+        break
+      default:
+        setStatus(`Error: ${error.message}`)
+    }
+  }
 
 
   const createFogCanvas = () => {
@@ -73,7 +171,6 @@ export default function App() {
       z-index: 1;
     `
     
-    // Set canvas size
     const rect = mapContainer.current.getBoundingClientRect()
     canvas.width = rect.width * window.devicePixelRatio
     canvas.height = rect.height * window.devicePixelRatio
@@ -101,25 +198,22 @@ export default function App() {
 
     const ctx = canvas.getContext('2d')
     const dpr = window.devicePixelRatio
+    const points = exploredPointsRef.current
 
-    // Clear canvas
+    // Clear and fill with fog
     ctx.clearRect(0, 0, canvas.width, canvas.height)
-
-    // Fill with fog
     ctx.fillStyle = FOG_COLOR
     ctx.globalAlpha = FOG_OPACITY
     ctx.fillRect(0, 0, canvas.width, canvas.height)
 
-    // Reset alpha and set composite to "punch holes"
+    // Punch holes for explored points
     ctx.globalAlpha = 1
     ctx.globalCompositeOperation = 'destination-out'
 
-    // Clear fog for each explored point
-    exploredPoints.forEach(point => {
+    points.forEach(point => {
       const screenPos = map.current.project([point.lng, point.lat])
       const radiusPixels = metersToPixels(point.lat, CLEAR_RADIUS, map.current.getZoom())
 
-      // Draw gradient circle (soft edges)
       const gradient = ctx.createRadialGradient(
         screenPos.x * dpr, screenPos.y * dpr, 0,
         screenPos.x * dpr, screenPos.y * dpr, radiusPixels * dpr
@@ -137,71 +231,16 @@ export default function App() {
     ctx.globalCompositeOperation = 'source-over'
   }
 
-
+   //Re-render fog when points change
   useEffect(() => {
     renderFog()
   }, [exploredPoints])
 
-  /**
-   * Start tracking location
-   */
-  const startTracking = () => {
-    if (!navigator.geolocation) {
-      setStatus('Geolocation not supported')
-      return
-    }
-
-    setIsTracking(true)
-    setStatus('Getting location...')
-
-    // Watch position
-    const watchId = navigator.geolocation.watchPosition(
-      (position) => {
-        const { latitude, longitude, accuracy } = position.coords
-        
-        setCurrentPos({ lat: latitude, lng: longitude })
-        setStatus(`Tracking... (accuracy: ${Math.round(accuracy)}m)`)
-
-        // Update user marker
-        updateUserMarker(latitude, longitude)
-
-        // Check if we should save this point
-        if (shouldSavePoint(latitude, longitude)) {
-          addExploredPoint(latitude, longitude)
-        }
-      },
-      (error) => {
-        setStatus(`Error: ${error.message}`)
-        setIsTracking(false)
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 5000,
-      }
-    )
-
-    // Store watchId to clear later
-    window.geoWatchId = watchId
-  }
-
-
-  const stopTracking = () => {
-    if (window.geoWatchId) {
-      navigator.geolocation.clearWatch(window.geoWatchId)
-    }
-    setIsTracking(false)
-    setStatus(`Stopped. ${exploredPoints.length} points explored.`)
-  }
-
-  /**
-   * Update or create user marker on map
-   */
+   //Update user marker on map
   const updateUserMarker = (lat, lng) => {
     if (!map.current) return
 
     if (!userMarker.current) {
-      // Create marker element
       const el = document.createElement('div')
       el.innerHTML = `
         <div style="
@@ -231,16 +270,9 @@ export default function App() {
     } else {
       userMarker.current.setLngLat([lng, lat])
     }
-
-    // Center map on user (first time only)
-    if (exploredPoints.length === 0) {
-      map.current.flyTo({ center: [lng, lat], zoom: 16 })
-    }
   }
 
-  /**
-   * Check if we should save this point (moved enough distance)
-   */
+// Check if point should be saved (moved enough)
   const shouldSavePoint = (lat, lng) => {
     if (!lastSavedPos.current) return true
 
@@ -254,36 +286,23 @@ export default function App() {
     return distance >= MIN_DISTANCE
   }
 
-  /**
-   * Add a new explored point
-   */
+//Add explored point
   const addExploredPoint = (lat, lng) => {
     const newPoint = { lat, lng, timestamp: Date.now() }
     setExploredPoints(prev => [...prev, newPoint])
     lastSavedPos.current = { lat, lng }
   }
 
-  /**
-   * Center map on current location
-   */
+//Center map on user
   const centerOnUser = () => {
     if (currentPos && map.current) {
       map.current.flyTo({ center: [currentPos.lng, currentPos.lat], zoom: 16 })
     }
   }
 
-  /**
-   * Clear all explored points (reset fog)
-   */
-  const clearExplored = () => {
-    setExploredPoints([])
-    lastSavedPos.current = null
-    setStatus('Fog reset!')
-  }
-
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
-      {/* Map container */}
+      {/* Map */}
       <div ref={mapContainer} style={{ width: '100%', height: '100%' }} />
 
       {/* Status bar */}
@@ -293,60 +312,39 @@ export default function App() {
         left: 10,
         right: 10,
         padding: '12px 16px',
-        background: 'rgba(0,0,0,0.8)',
+        background: 'rgba(0,0,0,0.85)',
         borderRadius: 12,
         color: 'white',
         fontSize: 14,
         zIndex: 10,
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
       }}>
-        <div>
-          <div style={{ opacity: 0.7, fontSize: 12 }}>
-            {isTracking ? '🟢 Tracking' : '⚪ Stopped'}
-          </div>
-          <div>{status}</div>
-        </div>
-        <div style={{ fontWeight: 'bold' }}>
-          {exploredPoints.length} pts
-        </div>
+        {status}
       </div>
 
-      {/* Control buttons */}
-      <div style={{
-        position: 'absolute',
-        bottom: 30,
-        right: 10,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 10,
-        zIndex: 10,
-      }}>
-        {/* Center button */}
-        <button onClick={centerOnUser} style={buttonStyle}>
-          📍
-        </button>
-
-        {/* Clear button */}
-        <button onClick={clearExplored} style={buttonStyle}>
-          🗑️
-        </button>
-
-        {/* Start/Stop button */}
-        <button
-          onClick={isTracking ? stopTracking : startTracking}
-          style={{
-            ...buttonStyle,
-            width: 64,
-            height: 64,
-            fontSize: 24,
-            background: isTracking ? '#e53935' : '#1976d2',
-          }}
-        >
-          {isTracking ? '⏹' : '▶️'}
-        </button>
-      </div>
+      {/* Center on user button */}
+      <button
+        onClick={centerOnUser}
+        disabled={!currentPos}
+        style={{
+          position: 'absolute',
+          bottom: 30,
+          right: 10,
+          width: 56,
+          height: 56,
+          borderRadius: '50%',
+          border: 'none',
+          background: currentPos ? '#1976d2' : 'rgba(0,0,0,0.5)',
+          color: 'white',
+          fontSize: 24,
+          cursor: currentPos ? 'pointer' : 'not-allowed',
+          zIndex: 10,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+        }}
+      >
+      </button>
 
       {/* Pulse animation */}
       <style>{`
@@ -359,24 +357,7 @@ export default function App() {
   )
 }
 
-// Button style
-const buttonStyle = {
-  width: 48,
-  height: 48,
-  borderRadius: '50%',
-  border: 'none',
-  background: 'rgba(0,0,0,0.8)',
-  color: 'white',
-  fontSize: 18,
-  cursor: 'pointer',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-}
-
-/**
- * Convert meters to pixels at given latitude and zoom
- */
+ //Convert meters to pixels
 function metersToPixels(lat, meters, zoom) {
   const earthCircumference = 40075016.686
   const pixelsPerMeter = (256 * Math.pow(2, zoom)) / 
@@ -384,9 +365,9 @@ function metersToPixels(lat, meters, zoom) {
   return meters * pixelsPerMeter
 }
 
-
+//Calculate distance between two points (meters)
 function calculateDistance(lat1, lng1, lat2, lng2) {
-  const R = 6371000 // Earth radius in meters
+  const R = 6371000
   const dLat = (lat2 - lat1) * Math.PI / 180
   const dLng = (lng2 - lng1) * Math.PI / 180
   const a = 
