@@ -5,12 +5,14 @@
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev" : "node --env-file=.env --watch src/index.js"
+    "dev": "node --env-file=.env --watch src/index.js"
   },
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "dexie": "^4.2.1",
+    "dexie-react-hooks": "^4.2.0",
     "express": "^5.1.0",
     "pg": "^8.16.3"
   }

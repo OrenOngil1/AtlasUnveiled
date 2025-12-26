@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import maplibregl from 'maplibre-gl'
+import { initializeDatabase } from './db'
+import { useExploredPoints } from './hooks'
 
 
 // Fog settings
@@ -21,9 +23,12 @@ export default function App() {
   const exploredPointsRef = useRef([]) // Ref to access in interval
   
   // State
-  const [exploredPoints, setExploredPoints] = useState([])
+  const [dbReady, setDbReady] = useState(false)
   const [currentPos, setCurrentPos] = useState(null)
   const [status, setStatus] = useState('Requesting location permission...')
+
+  // IndexedDB hook (replaces useState for exploredPoints)
+  const { points: exploredPoints, savePoint } = useExploredPoints()
   
   // Last saved position
   const lastSavedPos = useRef(null)
@@ -33,9 +38,15 @@ export default function App() {
     exploredPointsRef.current = exploredPoints
   }, [exploredPoints])
 
+  // Initialize database
+  useEffect(() => {
+    initializeDatabase()
+      .then(() => setDbReady(true))
+      .catch(err => setStatus('Database error: ' + err.message))
+  }, [])
 
   useEffect(() => {
-    if (map.current) return
+    if (map.current || !dbReady) return
 
     // Create map
     map.current = new maplibregl.Map({
@@ -66,7 +77,7 @@ export default function App() {
       }
       map.current?.remove()
     }
-  }, [])
+  }, [dbReady])
 
 
   const requestLocationPermission = async () => {
@@ -211,8 +222,8 @@ export default function App() {
     ctx.globalCompositeOperation = 'destination-out'
 
     points.forEach(point => {
-      const screenPos = map.current.project([point.lng, point.lat])
-      const radiusPixels = metersToPixels(point.lat, CLEAR_RADIUS, map.current.getZoom())
+      const screenPos = map.current.project([point.longitude, point.latitude])
+      const radiusPixels = metersToPixels(point.latitude, CLEAR_RADIUS, map.current.getZoom())
 
       const gradient = ctx.createRadialGradient(
         screenPos.x * dpr, screenPos.y * dpr, 0,
@@ -287,9 +298,8 @@ export default function App() {
   }
 
 //Add explored point
-  const addExploredPoint = (lat, lng) => {
-    const newPoint = { lat, lng, timestamp: Date.now() }
-    setExploredPoints(prev => [...prev, newPoint])
+  const addExploredPoint = async (lat, lng) => {
+    await savePoint(lat, lng)
     lastSavedPos.current = { lat, lng }
   }
 
