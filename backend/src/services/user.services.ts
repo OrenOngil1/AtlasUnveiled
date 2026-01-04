@@ -16,7 +16,7 @@ export const loginUserService = async(username: string, password: string): Promi
         throw new UserNotFoundError();
     }
 
-    console.log(`user ${user} logged in`);
+    // console.log(`user ${user} logged in`);
     return user;
 }
 
@@ -29,7 +29,7 @@ export const logoutUserService = async(userId: number): Promise<void> => {
     //add check to see if user is logged in, if not throw 409 error
     console.log(`user ${user} logged out`);
 }
-// TODO: Rethink this
+
 export const getUserService = async(userId: number): Promise<UserData> => {
     const user = await getUserByIdModel(userId);
     if(user === undefined) {
@@ -44,8 +44,6 @@ export const deleteUserService = async(userId: number): Promise<UserData> => {
         throw new UserNotFoundError();
     }
 
-    // add check to see if user asking to delete is authorized
-
     // may discard return value of the delete operation
     const coordinatesDeleted: Point[] = await deleteUserCoordinatesModel(userId);
     const userDeleted: UserData = await deleteUserModel(userId);
@@ -55,20 +53,4 @@ export const deleteUserService = async(userId: number): Promise<UserData> => {
     }
 
     return userDeleted;
-
-}
-
-export const getAllUsersService = async(): Promise<UserData[]> => {
-    return await getAllUsersModel();
-}
-
-export const deleteAllUsersService = async(): Promise<UserData[]> => {
-    //add check to see if user asking to delete is authorized
-
-    const users: UserData[] = await deleteAllUsersModel();
-    const ids: number[] = users.map(user => user.id);
-    for(let userId of ids) {
-        await deleteUserCoordinatesModel(userId);
-    }
-    return users;
 }

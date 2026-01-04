@@ -45,6 +45,5 @@ export const deleteCoordinatesController = async(req: Request, res: Response): P
         } else {
             res.status(500).json({ "message": "Internal Server Error"});
         }
-    }
-    
+    }  
 };
