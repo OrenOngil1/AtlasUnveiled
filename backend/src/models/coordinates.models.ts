@@ -12,8 +12,8 @@ export const addUserCoordinatesModel = async(userId: number, CoordinatesList: Po
         )
     ).returning();
     
-    const coordinatesInserted: Point[] = rows.map(r => r.coordinates);
-    console.log(`inserted to user=${rows[0]!.userId} coordinates list=${coordinatesInserted} from database`);
+    const coordinatesInserted = rows.map(r => r.coordinates);
+    // console.log(`inserted to user=${rows[0]!.userId} coordinates list=${coordinatesInserted} from database`);
     return coordinatesInserted;
 };
 
@@ -22,8 +22,8 @@ export const getUserCoordinatesModel = async(userId: number): Promise<Point[]> =
         .from(discoveredCoordinatesTable)
         .where(eq(discoveredCoordinatesTable.userId ,userId));
 
-    const coordinatesList: Point[] = rows.map(row => row.coordinates);
-    console.log(`got for user=${userId} coordinates=${coordinatesList} from database`);
+    const coordinatesList = rows.map(row => row.coordinates);
+    // console.log(`got for user=${userId} coordinates=${coordinatesList} from database`);
     return coordinatesList;
 };
 
@@ -33,6 +33,6 @@ export const deleteUserCoordinatesModel = async(userId: number): Promise<Point[]
             .returning();
 
     const coordinatesDeleted = rows.map(r => r.coordinates);
-    console.log(`deleted for user=${userId} coordinates list=${coordinatesDeleted}`);
+    // console.log(`deleted for user=${userId} coordinates list=${coordinatesDeleted}`);
     return coordinatesDeleted;
 };
