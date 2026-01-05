@@ -1,2 +1,1 @@
-export { useExploredPoints } from './useExploredPoints';
-export { useUser } from './useUser';
+export { useExploredPoints, default as useExploredPointsDefault } from './useExploredPoints';

@@ -1,334 +1,346 @@
-import { useEffect, useRef, useState, useMemo } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import maplibregl from 'maplibre-gl'
-import { initializeDatabase } from './db'
+import 'maplibre-gl/dist/maplibre-gl.css'
+import './atlas-styles.css'
+
+// Database
+import { initializeDatabase, db } from './db'
 import { useExploredPoints } from './hooks'
 import { SpatialIndex, metersToPixels, calculateDistance } from './utils/spatialIndex'
 
-//Settings
+// Components
+import LoginScreen from './components/LoginScreen'
+
+// Services
+import { logoutUser, saveCoordinatesToBackend } from './services/apiService'
+
+// CONSTANTS
 const FOG_COLOR = '#1a1a2e'
 const FOG_OPACITY = 1
 const CLEAR_RADIUS = 40 // meters
-const UPDATE_INTERVAL = 10000 // 10 seconds
+
+const UPDATE_INTERVAL = 5000 // 5 seconds between GPS checks
+
 
 export default function App() {
-  // Refs
-  const mapContainer = useRef(null)
-  const map = useRef(null)
-  const fogCanvas = useRef(null)
-  const userMarker = useRef(null)
-  const trackingInterval = useRef(null)
-  const spatialIndex = useRef(new SpatialIndex(CLEAR_RADIUS))
-  
-  // State
-  const [dbReady, setDbReady] = useState(false)
-  const [currentPos, setCurrentPos] = useState(null)
-  const [status, setStatus] = useState('Requesting location permission...')
-
-  // IndexedDB hook
-  const { points: exploredPoints, savePoint } = useExploredPoints()
-
-  // Rebuild spatial index when points change
-  useEffect(() => {
-    spatialIndex.current.buildFromPoints(exploredPoints)
-  }, [exploredPoints])
-
-  // Get clustered points
-  const renderPoints = useMemo(() => {
-    if (exploredPoints.length === 0) return []
-    // Use clustering to reduce overlapping circles
-    return spatialIndex.current.getClusteredPoints()
-  }, [exploredPoints])
-
-  // Initialize database
-  useEffect(() => {
-    initializeDatabase()
-      .then(() => setDbReady(true))
-      .catch(err => setStatus('Database error: ' + err.message))
-  }, [])
-
-  useEffect(() => {
-    if (map.current || !dbReady) return
-    // Create map
-    map.current = new maplibregl.Map({
-      container: mapContainer.current,
-      style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
-      center: [34.7818, 32.0853], // Default center
-      zoom: 15,
-      attributionControl: false,
-    })
-
-    // When map loads, create fog and start tracking
-    map.current.on('load', () => {
-      createFogCanvas()
-      requestLocationPermission()
-    })
-
-    // Re-render fog when map moves/zooms
-    map.current.on('move', renderFog)
-    map.current.on('zoom', renderFog)
-
-    // Handle resize
-    window.addEventListener('resize', handleResize)
-    return () => {
-      window.removeEventListener('resize', handleResize)
-      if (trackingInterval.current) {
-        clearInterval(trackingInterval.current)
-      }
-      map.current?.remove()
-    }
-  }, [dbReady])
-
-  const requestLocationPermission = async () => {
-    if (!navigator.geolocation) {
-      setStatus('Geolocation not supported in this browser')
-      return
-    }
-    setStatus('Requesting location permission...')
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setStatus('Permission granted! Tracking started.')
-        handleNewPosition(position)
-        const { latitude, longitude } = position.coords
-        map.current?.flyTo({ center: [longitude, latitude], zoom: 16 })
-        startContinuousTracking()
-      },
-      (error) => {
-        handleGeolocationError(error)
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: 0,
-      }
-    )
-  }
-
-  const startContinuousTracking = () => {
-    if (trackingInterval.current) {
-      clearInterval(trackingInterval.current)
-    }
-    trackingInterval.current = setInterval(() => {
-      navigator.geolocation.getCurrentPosition(
-        handleNewPosition,
-        (error) => {
-          if (error.code !== error.TIMEOUT) {
-            handleGeolocationError(error)
-          }
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0,
-        }
-      )
-    }, UPDATE_INTERVAL)
-  }
-
-  const handleNewPosition = (position) => {
-    const { latitude, longitude, accuracy } = position.coords
-    setCurrentPos({ lat: latitude, lng: longitude })
-    const pointCount = exploredPoints.length
-    const clusteredCount = renderPoints.length
-    setStatus(`Tracking (±${Math.round(accuracy)}m) | ${pointCount} pts (${clusteredCount} clusters)`)
-    updateUserMarker(latitude, longitude)
-
-    // Only save if this location isn't already revealed
-    if (!spatialIndex.current.isLocationRevealed(latitude, longitude)) {
-      addExploredPoint(latitude, longitude)
-    }
-  }
-
-  const handleGeolocationError = (error) => {
-    switch (error.code) {
-      case error.PERMISSION_DENIED:
-        setStatus('Permission denied. Please allow location access and refresh the page.')
-        break
-      case error.POSITION_UNAVAILABLE:
-        setStatus('Location unavailable. Check GPS/Location settings.')
-        break
-      case error.TIMEOUT:
-        setStatus('Getting location...')
-        break
-      default:
-        setStatus(`Error: ${error.message}`)
-    }
-  }
-
-  const createFogCanvas = () => {
-    const canvas = document.createElement('canvas')
-    canvas.id = 'fog-canvas'
-    canvas.style.cssText = `
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      pointer-events: none;
-      z-index: 1;
-    `
-    const rect = mapContainer.current.getBoundingClientRect()
-    canvas.width = rect.width * window.devicePixelRatio
-    canvas.height = rect.height * window.devicePixelRatio
-    mapContainer.current.appendChild(canvas)
-    fogCanvas.current = canvas
-    renderFog()
-  }
-
-  const handleResize = () => {
-    if (!fogCanvas.current || !mapContainer.current) return
-    const rect = mapContainer.current.getBoundingClientRect()
-    fogCanvas.current.width = rect.width * window.devicePixelRatio
-    fogCanvas.current.height = rect.height * window.devicePixelRatio
-    renderFog()
-  }
-
-  const renderFog = () => {
-    const canvas = fogCanvas.current
-    if (!canvas || !map.current) return
-    const ctx = canvas.getContext('2d')
-    const dpr = window.devicePixelRatio
+    // REFS
+    const mapContainer = useRef(null)
+    const map = useRef(null)
+    const fogCanvas = useRef(null)
+    const userMarker = useRef(null)
+    const trackingInterval = useRef(null)
+    const spatialIndex = useRef(new SpatialIndex(CLEAR_RADIUS, 0.5))
+    const lastSavedPos = useRef(null)
+    // STATE
+    // Authentication state
+    const [isLoggedIn, setIsLoggedIn] = useState(false)
+    const [currentUser, setCurrentUser] = useState(null) // {id, name}
     
-    // Use clustered points for efficient rendering
-    const points = spatialIndex.current.getClusteredPoints()
+    // App state
+    const [dbReady, setDbReady] = useState(false)
+    const [mapLoaded, setMapLoaded] = useState(false)
+    const [isLoggingOut, setIsLoggingOut] = useState(false)
 
-    // Clear and fill with fog
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-    ctx.fillStyle = FOG_COLOR
-    ctx.globalAlpha = FOG_OPACITY
-    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    // IndexedDB hook
+    const { points: exploredPoints, savePoint, clearPoints } = useExploredPoints()
 
-    // Punch holes for explored points
-    ctx.globalAlpha = 1
-    ctx.globalCompositeOperation = 'destination-out'
+    // INITIALIZE DATABASE
+    useEffect(() => {
+        initializeDatabase()
+            .then(() => {
+                console.log('Database ready')
+                setDbReady(true)
+            })
+            .catch(err => {
+                console.error('Database init failed:', err)
+            })
+    }, [])
 
-    // Only render points that are visible on screen
-    const bounds = map.current.getBounds()
-    const visiblePoints = points.filter(point => 
-      point.latitude >= bounds.getSouth() - 0.01 &&
-      point.latitude <= bounds.getNorth() + 0.01 &&
-      point.longitude >= bounds.getWest() - 0.01 &&
-      point.longitude <= bounds.getEast() + 0.01
-    )
-
-    visiblePoints.forEach(point => {
-      const screenPos = map.current.project([point.longitude, point.latitude])
-      const radiusPixels = metersToPixels(point.latitude, CLEAR_RADIUS, map.current.getZoom())
-      const gradient = ctx.createRadialGradient(
-        screenPos.x * dpr, screenPos.y * dpr, 0,
-        screenPos.x * dpr, screenPos.y * dpr, radiusPixels * dpr
-      )
-      gradient.addColorStop(0, 'rgba(0,0,0,1)')
-      gradient.addColorStop(0.7, 'rgba(0,0,0,1)')
-      gradient.addColorStop(1, 'rgba(0,0,0,0)')
-
-      ctx.fillStyle = gradient
-      ctx.beginPath()
-      ctx.arc(screenPos.x * dpr, screenPos.y * dpr, radiusPixels * dpr, 0, Math.PI * 2)
-      ctx.fill()
-    })
-    ctx.globalCompositeOperation = 'source-over'
-  }
-
-  // Re-render fog when points change
-  useEffect(() => {
-    renderFog()
-  }, [exploredPoints])
-
-  const updateUserMarker = (lat, lng) => {
-    if (!map.current) return
-    if (!userMarker.current) {
-      const el = document.createElement('div')
-      el.innerHTML = `
-        <div style="
-          width: 20px;
-          height: 20px;
-          background: #1976d2;
-          border: 3px solid white;
-          border-radius: 50%;
-          box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-        "></div>
-        <div style="
-          position: absolute;
-          top: -10px;
-          left: -10px;
-          width: 40px;
-          height: 40px;
-          background: rgba(25,118,210,0.3);
-          border-radius: 50%;
-          animation: pulse 2s infinite;
-        "></div>
-      `
-      el.style.cssText = 'position: relative; width: 20px; height: 20px;'
-      userMarker.current = new maplibregl.Marker({ element: el })
-        .setLngLat([lng, lat])
-        .addTo(map.current)
-    } else {
-      userMarker.current.setLngLat([lng, lat])
-    }
-  }
-
-  const addExploredPoint = async (lat, lng) => {
-    await savePoint(lat, lng)
-  }
-
-  const centerOnUser = () => {
-    if (currentPos && map.current) {
-      map.current.flyTo({ center: [currentPos.lng, currentPos.lat], zoom: 16 })
-    }
-  }
-
-  return (
-    <div style={{ width: '100%', height: '100%', position: 'relative' }}>
-      <div ref={mapContainer} style={{ width: '100%', height: '100%' }} />
-
-      <div style={{
-        position: 'absolute',
-        top: 10,
-        left: 10,
-        right: 10,
-        padding: '12px 16px',
-        background: 'rgba(0,0,0,0.85)',
-        borderRadius: 12,
-        color: 'white',
-        fontSize: 14,
-        zIndex: 10,
-      }}>
-        {status}
-      </div>
-
-      {/* Center on user button */}
-      <button
-        onClick={centerOnUser}
-        disabled={!currentPos}
-        style={{
-          position: 'absolute',
-          bottom: 30,
-          right: 10,
-          width: 56,
-          height: 56,
-          borderRadius: '50%',
-          border: 'none',
-          background: currentPos ? '#1976d2' : 'rgba(0,0,0,0.5)',
-          color: 'white',
-          fontSize: 24,
-          cursor: currentPos ? 'pointer' : 'not-allowed',
-          zIndex: 10,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-        }}
-      >
-        📍
-      </button>
-
-      {/* Pulse animation */}
-      <style>{`
-        @keyframes pulse {
-          0% { transform: scale(0.5); opacity: 1; }
-          100% { transform: scale(1.5); opacity: 0; }
+    // BUILD SPATIAL INDEX WHEN POINTS CHANGE
+    useEffect(() => {
+        if (exploredPoints && exploredPoints.length > 0) {
+            spatialIndex.current.buildFromPoints(exploredPoints)
+            console.log(`Spatial index rebuilt with ${exploredPoints.length} points`)
         }
-      `}</style>
-    </div>
-  )
+    }, [exploredPoints])
+
+    // LOGIN HANDLER
+    const handleLoginSuccess = useCallback(async (user, backendCoordinates) => {
+        console.log('Login successful:', user.name)
+        setCurrentUser(user)
+        // Clear any existing local data first
+        await clearPoints()
+        console.log('Cleared local IndexedDB')
+        // Convert backend coordinates to IndexedDB format and save
+        if (backendCoordinates && backendCoordinates.length > 0) {
+            console.log(`Loading ${backendCoordinates.length} points from backend`)
+            // Backend format: {x: longitude, y: latitude}
+            // IndexedDB format: {latitude, longitude, timestamp}
+            for (const coord of backendCoordinates) {
+                await savePoint(coord.y, coord.x) // y=lat, x=lng
+            }
+            console.log('Points loaded into IndexedDB')
+        }
+        setIsLoggedIn(true)
+    }, [clearPoints, savePoint])
+
+    // LOGOUT HANDLER
+    const handleLogout = useCallback(async () => {
+        if (!currentUser || isLoggingOut) return
+        setIsLoggingOut(true)
+        console.log('Logging out...')
+        try {
+            // Get all points from IndexedDB
+            const allPoints = await db.exploredPoints.toArray()
+            console.log(`Syncing ${allPoints.length} points to backend`)
+            if (allPoints.length > 0) {
+                // Convert to backend format: {x: longitude, y: latitude}
+                const coordinates = allPoints.map(p => ({
+                    x: p.longitude,
+                    y: p.latitude
+                }))
+                await saveCoordinatesToBackend(currentUser.id, coordinates)
+                console.log('Points synced to backend')
+            }
+
+            // Call backend logout
+            await logoutUser(currentUser.id)
+            console.log('Backend logout complete')
+
+        } catch (err) {
+            console.error('Sync/logout error:', err)
+            // Still proceed with local logout even if sync fails
+        }
+        // Clear local IndexedDB
+        await clearPoints()
+        console.log('Local data cleared')
+        // Reset state
+        setCurrentUser(null)
+        setIsLoggedIn(false)
+        setMapLoaded(false)
+        setIsLoggingOut(false)
+        // Clean up map
+        if (map.current) {
+            map.current.remove()
+            map.current = null
+        }
+        if (userMarker.current) {
+            userMarker.current.remove()
+            userMarker.current = null
+        }
+        if (trackingInterval.current) {
+            clearInterval(trackingInterval.current)
+            trackingInterval.current = null
+        }
+    }, [currentUser, isLoggingOut, clearPoints])
+
+    // HANDLE APP CLOSE/BACKGROUND
+    useEffect(() => {
+        const handleBeforeUnload = async () => {
+            if (isLoggedIn && currentUser) {
+                // Quick sync attempt on close
+                try {
+                    const allPoints = await db.exploredPoints.toArray()
+                    if (allPoints.length > 0) {
+                        const coordinates = allPoints.map(p => ({
+                            x: p.longitude,
+                            y: p.latitude
+                        }))
+                        await saveCoordinatesToBackend(currentUser.id, coordinates)
+                    }
+                } catch (err) {
+                    console.error('Sync on close failed:', err)
+                }
+            }
+        }
+
+        window.addEventListener('beforeunload', handleBeforeUnload)
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden' && isLoggedIn) {
+                handleBeforeUnload()
+            }
+        })
+        return () => {
+            window.removeEventListener('beforeunload', handleBeforeUnload)
+        }
+    }, [isLoggedIn, currentUser])
+
+    // INITIALIZE MAP (only when logged in)
+    useEffect(() => {
+        if (!isLoggedIn || !dbReady || map.current) return
+        // Create map
+        map.current = new maplibregl.Map({
+            container: mapContainer.current,
+            style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
+            center: [34.78, 32.08], // Default: Tel Aviv
+            zoom: 15,
+            attributionControl: false
+        })
+
+        map.current.on('load', () => {
+            console.log('🗺️ Map loaded')
+            setMapLoaded(true)
+            setupFogCanvas()
+            startGPSTracking()
+        })
+        map.current.on('move', renderFog)
+        map.current.on('zoom', renderFog)
+        return () => {
+            if (trackingInterval.current) {
+                clearInterval(trackingInterval.current)
+            }
+        }
+    }, [isLoggedIn, dbReady])
+
+    // FOG CANVAS SETUP
+    const setupFogCanvas = () => {
+        if (!fogCanvas.current) return
+        const canvas = fogCanvas.current
+        canvas.width = window.innerWidth
+        canvas.height = window.innerHeight
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth
+            canvas.height = window.innerHeight
+            renderFog()
+        })
+    }
+
+    // RENDER FOG
+    const renderFog = useCallback(() => {
+        if (!fogCanvas.current || !map.current) return
+        const canvas = fogCanvas.current
+        const ctx = canvas.getContext('2d')
+        // Draw fog
+        ctx.fillStyle = FOG_COLOR
+        ctx.globalAlpha = FOG_OPACITY
+        ctx.fillRect(0, 0, canvas.width, canvas.height)
+        // Cut holes for explored points
+        ctx.globalCompositeOperation = 'destination-out'
+        ctx.globalAlpha = 1
+        const points = spatialIndex.current.getClusteredPoints?.() || exploredPoints || []
+        points.forEach(point => {
+            if (!point.latitude || !point.longitude) return
+            const screenPos = map.current.project([point.longitude, point.latitude])
+            const radiusPixels = metersToPixels(point.latitude, CLEAR_RADIUS, map.current.getZoom())
+            ctx.beginPath()
+            ctx.arc(screenPos.x, screenPos.y, radiusPixels, 0, Math.PI * 2)
+            ctx.fill()
+        })
+        // Reset composite operation
+        ctx.globalCompositeOperation = 'source-over'
+    }, [exploredPoints])
+    // Re-render fog when points change
+    useEffect(() => {
+        if (mapLoaded) {
+            renderFog()
+        }
+    }, [exploredPoints, mapLoaded, renderFog])
+
+    // GPS TRACKING
+    const startGPSTracking = () => {
+        if (!navigator.geolocation) {
+            console.error('Geolocation not supported')
+            return
+        }
+        const updatePosition = () => {
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const { latitude, longitude } = position.coords
+                    handleNewPosition(latitude, longitude)
+                },
+                (error) => {
+                    console.error('GPS error:', error.message)
+                },
+                { enableHighAccuracy: true, timeout: 10000 }
+            )
+        }
+        // Initial position
+        updatePosition()
+        // Periodic updates
+        trackingInterval.current = setInterval(updatePosition, UPDATE_INTERVAL)
+    }
+
+    const handleNewPosition = async (latitude, longitude) => {
+        if (!map.current) return
+        // Update/create user marker
+        if (!userMarker.current) {
+            const el = document.createElement('div')
+            el.className = 'user-marker'
+            el.innerHTML = '📍'
+            el.style.fontSize = '24px'
+
+            userMarker.current = new maplibregl.Marker({ element: el })
+                .setLngLat([longitude, latitude])
+                .addTo(map.current)
+        } else {
+            userMarker.current.setLngLat([longitude, latitude])
+        }
+        // Check if we should save this point
+        if (!spatialIndex.current.isLocationRevealed(latitude, longitude)) {
+            await savePoint(latitude, longitude)
+            lastSavedPos.current = { latitude, longitude }
+            console.log(`New point saved: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`)
+            renderFog()
+        }
+    }
+
+    // RENDER
+    // Show login screen if not logged in
+    if (!isLoggedIn) {
+        return <LoginScreen onLoginSuccess={handleLoginSuccess} />
+    }
+    // Show loading while DB initializes
+    if (!dbReady) {
+        return (
+            <div className="loading-screen">
+                <div className="loading-content">
+                    <span className="loading-spinner">⏳</span>
+                    <p>Initializing...</p>
+                </div>
+            </div>
+        )
+    }
+    // Main app view (NO STATUS BAR - as requested)
+    return (
+        <div className="app-container">
+            {/* Map Container */}
+            <div ref={mapContainer} className="map-container" />
+            {/* Fog Canvas Overlay */}
+            <canvas ref={fogCanvas} className="fog-canvas" />
+            {/* Minimal UI - Just logout button and center button */}
+            <div className="ui-overlay">
+                {/* User info and logout */}
+                <div className="top-bar">
+                    <span className="user-name">👤 {currentUser?.name}</span>
+                    <button 
+                        className="logout-button" 
+                        onClick={handleLogout}
+                        disabled={isLoggingOut}
+                    >
+                        {isLoggingOut ? '⏳' : '🚪 Logout'}
+                    </button>
+                </div>
+                {/* Center on user button */}
+                <button 
+                    className="center-button"
+                    onClick={() => {
+                        if (userMarker.current && map.current) {
+                            const lngLat = userMarker.current.getLngLat()
+                            map.current.flyTo({
+                                center: [lngLat.lng, lngLat.lat],
+                                zoom: 16,
+                                duration: 1000
+                            })
+                        }
+                    }}
+                >
+                    📍
+                </button>
+                {/* Point counter (minimal, not a full status bar) */}
+                <div className="point-counter">
+                    {exploredPoints?.length || 0} points
+                </div>
+            </div>
+        </div>
+    )
 }
