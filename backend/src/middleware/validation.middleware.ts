@@ -1,57 +1,62 @@
 import type { Request, Response, NextFunction } from "express"
-import { isPoint, isString, isStringNumeric } from "../utilities/utilities";
+import { isString, isStringNumeric, isTimestampedPoint } from "../utilities/utilities";
+import { validatePasswordStrength } from "./passwordRules.middleware";
 
 export const validateUserNameAndPassword = (req: Request, res: Response, next: NextFunction): void => {
-    const username = req.body?.username;
-    const password = req.body?.password;
+    const username: string | undefined = req.body?.username;
+    const password: string | undefined = req.body?.password;
 
     if(!isString(username)) {
-        res.status(400).json({ message: 'Username required' });
+        res.status(400).json({ message: 'Username Required' });
         return;
-    } else if(!isString(password)) {
+    }
+    
+    if(!isString(password)) {
         res.status(400).json({ message: 'Password required' });
         return;
     }
 
-    next();
-};
-
-export const validateIdParam = (req: Request, res: Response, next: NextFunction): void => {
-    const errorMessage = validateId(req.params?.userId);
-    if(errorMessage.length > 0) {
-        res.status(400).json({ message: errorMessage });
-        return;
-    }
-    next();
-};
-
-export const validateIdBody = (req: Request, res: Response, next: NextFunction): void => {
-    const errorMessage = validateId(req.body?.userId);
-    if(errorMessage.length > 0) {
-        res.status(400).json({ message: errorMessage });
+    const detailedErrors = validatePasswordStrength(password);
+    if(detailedErrors.length > 0) {
+        res.status(400).json({ message: 'Weak Password', details: detailedErrors });
         return;
     }
 
     next();
 };
 
-export const validateCoordinates = (req: Request, res: Response, next: NextFunction): void => {
+const validateIdFrom = (location: 'params' | 'body') => {
+    return (req: Request, res: Response, next: NextFunction): void => {
+
+        const id = location === 'params' ? req.params?.userId : req.body?.userId;
+
+        if(!id) {
+            res.status(400).json({ message: 'Id Required' });
+            return;
+        }
+
+        if(!isStringNumeric(id)) {
+            res.status(400).json({ message: 'Malformed Id' });
+            return;
+        }
+
+        next();
+    };
+};
+
+export const validateIdParam = validateIdFrom('params');
+
+export const validateIdBody = validateIdFrom('body');
+
+export const validateTimeStampedCoordinates = (req: Request, res: Response, next: NextFunction): void => {
     const coordinates = req.body?.coordinates;
-    console.log(`validating coordinates=${JSON.stringify(coordinates)}`)
-    if(!Array.isArray(coordinates) || !coordinates.every(isPoint)) {
-        console.log(!Array.isArray(coordinates) ? `coordinates isn't an array` : `coordinates isn't an array of Points`);
-        res.status(400).json({ message: 'Coordinates required' });
+    console.log(`validating coordinates=${JSON.stringify(coordinates)}`);
+
+    if(!Array.isArray(coordinates) || !coordinates.every(isTimestampedPoint)) {
+        console.log(!Array.isArray(coordinates) ? `coordinates isn't an array` : `coordinates isn't an array of Timestamped Points`);
+        res.status(400).json({ message: 'Valid Coordinates Required' });
         return;
     }
 
     next();
 };
-
-const validateId = (id: string | undefined): string => {
-    if(!id) {
-        return 'Id required';
-    } else if(!isStringNumeric(id)) {
-        return 'Malformed id';
-    }
-    return "";
-}

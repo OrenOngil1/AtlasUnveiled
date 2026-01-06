@@ -1,49 +1,39 @@
-import type { Request, Response } from "express";
+import type { Request, Response, NextFunction } from "express";
 import { getCoordinatesService, addCoordinatesService, deleteCoordinatesService } from "../services/coordinates.services"
-import { UserNotFoundError } from "../utilities/customErrors.utilities";
+import type { Point, TimestampedPoint } from "../utilities/utilities";
 
-export const getCoordinatesController = async(req: Request, res: Response): Promise<void> => {
-    const id = Number(req.params.userId);
+export const getCoordinatesController = async(req: Request<{ userId: string }>, res: Response, next: NextFunction): Promise<void> => {
+    const userId = Number(req.params.userId);
     try {
-        const coordinates = await getCoordinatesService(id);
+        const coordinates = await getCoordinatesService(userId);
         res.json(coordinates);
-    } catch(error: any) {
-        if(error instanceof UserNotFoundError) {
-            res.status(404).json({ message: error.message });
-        } else {
-            res.status(500).json({ "message": "Internal Server Error"});
-        }
+
+    } catch(error: unknown) {
+        next(error);
     }
 };
 
-export const addCoordinatesController = async(req: Request, res: Response): Promise<void> => {
-    const id = Number(req.params.userId);
+export const addCoordinatesController = async(req: Request<{ userId: string }, {}, { coordinates: TimestampedPoint[] }>, res: Response, next: NextFunction): Promise<void> => {
+    const userId = Number(req.params.userId);
     const coordinates = req.body.coordinates;
 
     try {
-        const coordinatesAdded = await addCoordinatesService(id, coordinates);
+        const coordinatesAdded = await addCoordinatesService(userId, coordinates);
         res.status(201).json(coordinatesAdded);
-    } catch(error: any) {
-        if(error instanceof UserNotFoundError) {
-            res.status(404).json({ message: error.message });
-        } else {
-            res.status(500).json({ "message": "Internal Server Error"});
-        }
+
+    } catch(error: unknown) {
+        next(error);
     }
 };
 
-//NOTE: This controller is for testing only!
-export const deleteCoordinatesController = async(req: Request, res: Response): Promise<void> => {
-    const id = Number(req.params.userId);
+export const deleteCoordinatesController = async(req: Request<{ userId: string }>, res: Response, next: NextFunction): Promise<void> => {
+    const userId = Number(req.params.userId);
 
     try {
-        const coordinatesDeleted = await deleteCoordinatesService(id);
+        const coordinatesDeleted = await deleteCoordinatesService(userId);
         res.json(coordinatesDeleted);
-    } catch(error: any) {
-        if(error instanceof UserNotFoundError) {
-            res.status(404).json({ message: error.message });
-        } else {
-            res.status(500).json({ "message": "Internal Server Error"});
-        }
+
+    } catch(error: unknown) {
+        next(error);
     }  
 };

@@ -1,77 +1,71 @@
-import type { Request, Response } from "express";
+import type { Request, Response, NextFunction } from "express";
 import { createUserService, loginUserService, logoutUserService } from "../services/user.services";
 import { getUserService, deleteUserService } from "../services/user.services";
-import { UserAlreadyExistsError, UserNotFoundError } from "../utilities/customErrors.utilities";
-import type { UserData } from "../utilities/utilities";
+import { UserNotFoundError, WrongPasswordError } from "../middleware/errorHandler.middleware";
+import type { LoginRequest, UserData } from "../utilities/utilities";
 
-export const createUserController = async(req: Request, res: Response): Promise<void> => {
-    const username = String(req.body.username);
-    const password = String(req.body.password);
+export const createUserController = async(req: Request<{}, {}, LoginRequest>, res: Response, next: NextFunction): Promise<void> => {
+    const { username, password } = req.body;
     try {
         const user = await createUserService(username, password);
         res.status(201).json(user);
-    } catch(error: any) {
-        if(error instanceof UserAlreadyExistsError) {
-            res.status(409).json({ message: error.message });
-        } else {
-            res.status(500).json({ message: "Internal Server Error"});
-        }
+
+    } catch(error: unknown) {
+        next(error);
     }   
 };
 
-export const loginUserController = async(req: Request, res: Response): Promise<void> => {
-    const username = String(req.body.username);
-    const password = String(req.body.password);
+export const loginUserController = async(req: Request<{}, {}, LoginRequest>, res: Response, next: NextFunction): Promise<void> => {
+    const { username, password } = req.body;
+
     try {
         const loginConfirm: UserData = await loginUserService(username, password);
         res.json(loginConfirm);
-    } catch(error: any) {
+
+    } catch(error: unknown) {
         if(error instanceof UserNotFoundError) {
-            res.status(404).json({ message: error.message });
-        } else {
-            res.status(500).json({ message: "Internal Server Error"});
+            res.status(401).json({ message: "username or password are incorrect" });
+            return;
         }
+
+        if(error instanceof WrongPasswordError) {
+            res.status(401).json({ message: "username or password are incorrect" });
+            return;
+        }
+
+        next(error);
     }
 };
 
-export const logoutUserController = async(req: Request, res: Response): Promise<void> => {
-    const id = Number(req.body.userId);
+export const logoutUserController = async(req: Request<{}, {}, { userId: number }>, res: Response, next: NextFunction): Promise<void> => {
+    const { userId } = req.body;
     try {
-        const logoutConfirm: void = await logoutUserService(id);
+        const logoutConfirm: void = await logoutUserService(userId);
         res.json(logoutConfirm);
-    } catch(error: any) {
-        if(error instanceof UserNotFoundError) {
-            res.status(404).json({ message: error.message });
-        } else {
-            res.status(500).json({ message: "Internal Server Error"});
-        }
+
+    } catch(error: unknown) {
+        next(error);
     }  
 };
 
-export const getUserController = async(req: Request, res: Response): Promise<void> => {
-    const id = Number(req.params.userId);
+export const getUserController = async(req: Request<{ userId: string }>, res: Response, next: NextFunction): Promise<void> => {
+    const userId = Number(req.params.userId);
     try {
-        const user = await getUserService(id);
+        const user = await getUserService(userId);
         res.json(user);
-    } catch(error: any) {
-        if(error instanceof UserNotFoundError) {
-            res.status(404).json({ message: error.message });
-        } else {
-            res.status(500).json({ message: "Internal Server Error"});
-        }
+
+    } catch(error: unknown) {
+        next(error);
     } 
 };
 
-export const deleteUserController = async(req: Request, res: Response): Promise<void> => {
-    const id = Number(req.params.userId);
+export const deleteUserController = async(req: Request<{ userId: string }>, res: Response, next: NextFunction): Promise<void> => {
+    const userId = Number(req.params.userId);
     try {
-        const userDeleted = await deleteUserService(id);
+        const userDeleted = await deleteUserService(userId);
         res.json(userDeleted);
-    } catch(error: any) {
-        if(error instanceof UserNotFoundError) {
-            res.status(404).json({ message: error.message });
-        } else {
-            res.status(500).json({ message: "Internal Server Error"});
-        }
+
+    } catch(error: unknown) {
+        next(error);
     }  
 };

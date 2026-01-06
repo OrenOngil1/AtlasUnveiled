@@ -1,0 +1,1 @@
+ALTER TABLE "discovered_coordinates" ADD COLUMN "timestamp" timestamp DEFAULT now() NOT NULL;
