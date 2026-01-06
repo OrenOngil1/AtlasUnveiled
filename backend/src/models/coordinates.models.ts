@@ -1,13 +1,14 @@
 import { eq, sql } from "drizzle-orm";
 import { db } from "../db/connection";
 import { discoveredCoordinatesTable } from "../db/schema";
-import type { Point } from "../utilities/utilities";
+import type { Point, TimestampedPoint } from "../utilities/utilities";
 // TODO: implement use of JWT
-export const addUserCoordinatesModel = async(userId: number, CoordinatesList: Point[]): Promise<Point[]> => {
+export const addUserCoordinatesModel = async(userId: number, CoordinatesList: TimestampedPoint[]): Promise<Point[]> => {
     const rows = await db.insert(discoveredCoordinatesTable)
             .values(CoordinatesList.map(coordinates => ({
                 userId: userId,
-                coordinates: sql`ST_SetSRID(ST_MakePoint(${coordinates.x}, ${coordinates.y}), 4326)`
+                coordinates: sql`ST_SetSRID(ST_MakePoint(${coordinates.x}, ${coordinates.y}), 4326)`,
+                timestamp: new Date(coordinates.timestamp)
             })
         )
     ).returning();

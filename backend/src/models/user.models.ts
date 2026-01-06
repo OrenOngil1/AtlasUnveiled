@@ -1,8 +1,10 @@
 import { db } from "../db/connection";
 import { usersTable } from "../db/schema";
 import { eq } from "drizzle-orm";
-import type { UserData } from "../utilities/utilities";
+import type { User, UserData } from "../utilities/utilities";
 // TODO: implement use of JWT
+
+// Returns user data WITHOUT password (safe for general use)
 export const getUserByIdModel = async(userId: number): Promise<UserData | undefined> => {
     const rows = await db.select({ id: usersTable.id, name: usersTable.name })
         .from(usersTable)
@@ -11,30 +13,34 @@ export const getUserByIdModel = async(userId: number): Promise<UserData | undefi
     return rows[0];
 }
 
-export const getUserByNameModel = async(username: string): Promise<UserData | undefined> => {
-    const rows = await db.select({ id: usersTable.id, name: usersTable.name })
+// Returns user data WITH password (for login use)
+export const getUserByNameModel = async(username: string): Promise<User | undefined> => {
+    const rows = await db.select()
         .from(usersTable)
         .where(eq(usersTable.name, username));
 
     // console.log(`got user=${JSON.stringify(rows[0])} by username=${username} from database`);
     return rows[0];
 }
-// TODO: add password encryption later
-export const addUserModel = async(username: string, password: string): Promise<UserData> => {
+
+export const addUserModel = async(username: string, password: string): Promise<UserData | undefined> => {
     const rows = await db.insert(usersTable)
         .values({ name: username, password: password })
         .returning();
 
     // console.log(`added user=${JSON.stringify(rows[0])} to database`);
-    return {id: rows[0]!.id, name: rows[0]!.name };
+    const user = rows[0];;
+    return user && { id: user.id, name: user.name };
 }
 
-export const deleteUserModel = async(userId: number): Promise<UserData> => {
+export const deleteUserModel = async(userId: number): Promise<UserData | undefined> => {
     const rows = await db.delete(usersTable)
         .where(eq(usersTable.id, userId))
         .returning();
+
     // console.log(`deleted user=${JSON.stringify(rows[0])} from database`);
-    return rows[0] ?? { id: rows[0]!.id, name: rows[0]!.name };
+    const user = rows[0];;
+    return user && { id: user.id, name: user.name };
 }
 
 export const getAllUsersModel = async(): Promise<UserData[]> => {

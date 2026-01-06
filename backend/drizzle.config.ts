@@ -15,5 +15,9 @@ export default defineConfig({
 
   migrations: {
     prefix: "timestamp"
-  }
+  },
+
+  schemaFilter: ['public'],
+  
+  tablesFilter: ['!spatial_ref_sys', '!geometry_columns', '!geography_columns'],
 });
