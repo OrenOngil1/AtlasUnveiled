@@ -1,8 +1,10 @@
 import express, { type Request, type Response, type NextFunction } from "express";
 import userRoutes from "./routes/user.routes";
 import coordinateRoutes from "./routes/coordinates.routes";
-import  errorHandler  from "./middleware/errorHandler.middleware";
+import authRoutes from "./routes/auth.routes";
+import errorHandler  from "./middleware/errorHandler.middleware";
 import { pool } from "./db/connection";
+import { deleteExpiredRefreshTokensModel } from "./models/refreshTokens.models";
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -11,17 +13,23 @@ const port = process.env.PORT || 3000;
 app.use(express.json());
 
 // Routes
-app.use("/users", userRoutes);
+app.use("/auth", authRoutes);
+
+app.use("/user", userRoutes);
 
 app.use("/coordinates", coordinateRoutes);
 
 // 404 Not Found middleware
 app.use((req: Request, res: Response, next: NextFunction) => {
+    console.log(`404 Not Found: ${req.method} ${req.originalUrl}`);
     res.status(404).json({ message: "Not Found" });
 });
 
 // Error handling middleware
 app.use(errorHandler);
+
+// clean up expired refresh tokens daily
+setInterval(deleteExpiredRefreshTokensModel, 24 * 60 * 60 * 1000);
 
 // Creates server
 const server = app.listen(port, () => {
