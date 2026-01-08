@@ -1,5 +1,5 @@
-import { db, pool } from "../db/connection";
-import { discoveredCoordinatesTable, usersTable } from "./schema";
+import { db, pool } from "../src/db/connection";
+import { discoveredCoordinatesTable, usersTable } from "../src/db/schema";
 import bcrypt from "bcrypt";
 import { sql } from "drizzle-orm";
 
@@ -14,8 +14,8 @@ const seed  = async () => {
 
         // add initial users
         const users = await db.insert(usersTable).values([
-            { name: "alice", password: await bcrypt.hash("Password123", 10) },
-            { name: "bob", password: await bcrypt.hash("Password123", 10) }
+            { name: "alice", hashedPassword: await bcrypt.hash("Password123", 10) },
+            { name: "bob", hashedPassword: await bcrypt.hash("Password123", 10) }
         ]).returning();
 
         const user1 = users[0]!;
@@ -29,14 +29,22 @@ const seed  = async () => {
             { userId: user2.id, coordinates: sql`ST_SetSRID(ST_MakePoint(20, 40), 4326)`, timestamp: new Date() }
         ]);
 
-        console.log("Seeding completed!");
+        console.log(`Created users: `);
+        console.log(`${user1.name} (id=${user1.id}, password=Password123),`);
+        console.log(`${user2.name} (id=${user2.id}, password=Password123)`);
+
+        console.log(`Created initial coordinates for users:`);
+        console.log(`- User ${user1.name} (id=${user1.id}): (10,20), (15,25)`);
+        console.log(`- User ${user2.name} (id=${user2.id}): (10,20), (20,40)`);
 
     } catch (error) {
         console.error("Seeding failed:", error);
+        console.log("================================================");
         process.exit(1);
 
     } finally {
         await pool.end(); // Ensure the pool is closed after seeding
+        console.log("================================================");
     }
 };
 

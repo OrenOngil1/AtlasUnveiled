@@ -68,20 +68,6 @@ The application follows a layered architecture pattern:
 ```
 
 ### Project Structure
-
-project-root/
-  ├── src/
-  │   ├── index.ts
-  │   ├── db/
-  │   ├── routes/
-  │   └── ... (as documented)
-  ├── drizzle/           # Migration files
-  ├── node_modules/
-  ├── package.json
-  ├── tsconfig.json
-  ├── .env
-  └── README.md
-
 ```
 project-root/
   ├── src/

@@ -1,5 +1,5 @@
 import { migrate } from "drizzle-orm/node-postgres/migrator";
-import { db, pool } from "./connection";
+import { db, pool } from "../src/db/connection";
 
 import { join } from "path";
 

@@ -14,8 +14,8 @@
     "db:logs": "docker logs -f atlas-postgres",
     "db:reset": "docker-compose down -v && docker-compose up -d",
     "db:generate": "drizzle-kit generate --config ./drizzle.config.ts",
-    "db:migrate": "tsx --env-file=.env src/db/migrate.ts",
-    "db:seed": "tsx --env-file=.env src/db/seed.ts"
+    "db:migrate": "tsx --env-file=.env scripts/migrate.ts",
+    "db:seed": "tsx --env-file=.env scripts/seed.ts"
   },
   "author": "",
   "license": "ISC",
@@ -24,11 +24,13 @@
     "bcrypt": "^6.0.0",
     "drizzle-orm": "^0.45.0",
     "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.3",
     "pg": "^8.16.3"
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",
     "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^24.10.1",
     "@types/pg": "^8.15.6",
     "drizzle-kit": "^0.31.8",

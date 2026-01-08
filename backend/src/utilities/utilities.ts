@@ -1,7 +1,18 @@
+import type { Request } from "express";
+
 export interface User {
     id: number
     name: string
-    password: string
+};
+
+export interface UserAccount extends User {
+    hashedPassword: string
+};
+
+export interface AuthenticatedUser {
+    user: User;
+    accessToken: string;
+    refreshToken: string;
 };
 
 export interface LoginRequest {
@@ -9,11 +20,6 @@ export interface LoginRequest {
     password: string;
 }
 
-export interface UserData {
-    id: number
-    name: string
-    //token: string
-};
 
 export interface Point {
     x: number;
@@ -22,7 +28,11 @@ export interface Point {
 
 export interface TimestampedPoint extends Point {
     timestamp: number;
-}
+};
+
+export interface AuthenticatedRequest extends Request {
+    userId?: number;
+};
 
 export const isStringNumeric = (str: string): boolean => /^\d+$/.test(str);
 
