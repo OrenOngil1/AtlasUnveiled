@@ -13,27 +13,29 @@ export default function LoginScreen({ onLoginSuccess }) {
         setError('');
         setIsLoading(true);
         try {
-            let user;
+            let authData;
             if (isRegisterMode) {
                 // Register new user
-                user = await registerUser(username, password);
-                console.log('User registered:', user);
+                // Returns {user: {id, name}, accessToken, refreshToken}
+                authData = await registerUser(username, password);
+                console.log('User registered:', authData.user);
             } else {
                 // Login existing user
-                user = await loginUser(username, password);
-                console.log('User logged in:', user);
+                // Returns {user: {id, name}, accessToken, refreshToken}
+                authData = await loginUser(username, password);
+                console.log('User logged in:', authData.user);
             }
-            // Fetch user's coordinates from backend
+            // Fetch user's coordinates from backend (uses stored token)
             let coordinates = [];
             try {
-                coordinates = await fetchUserCoordinates(user.id);
+                coordinates = await fetchUserCoordinates();
                 console.log(`Fetched ${coordinates.length} coordinates from backend`);
             } catch (err) {
                 console.log('No existing coordinates or fetch failed:', err.message);
                 // Continue anyway - user may be new or have no data
             }
-            // Pass user data and coordinates to parent
-            onLoginSuccess(user, coordinates);
+            // Pass auth data (contains user info) and coordinates to parent
+            onLoginSuccess(authData, coordinates);
 
         } catch (err) {
             console.error('Auth error:', err);

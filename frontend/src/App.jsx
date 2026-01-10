@@ -12,7 +12,7 @@ import { SpatialIndex, metersToPixels, calculateDistance } from './utils/spatial
 import LoginScreen from './components/LoginScreen'
 
 // Services
-import { logoutUser, saveCoordinatesToBackend, deleteUserCoordinates } from './services/apiService'
+import { logoutUser, saveCoordinatesToBackend, deleteUserCoordinates, clearTokens } from './services/apiService'
 // At the top, after imports
 window.__db = db;
 // CONSTANTS
@@ -32,6 +32,7 @@ export default function App() {
     const trackingInterval = useRef(null)
     const spatialIndex = useRef(new SpatialIndex(CLEAR_RADIUS, 0.5))
     const lastSavedPos = useRef(null)
+    const lastSyncPointCount = useRef(0) // Track last sync to avoid redundant syncs
     // STATE
     // Authentication state
     const [isLoggedIn, setIsLoggedIn] = useState(false)
@@ -66,7 +67,9 @@ export default function App() {
     }, [exploredPoints])
 
     // LOGIN HANDLER
-    const handleLoginSuccess = useCallback(async (user, backendCoordinates) => {
+    const handleLoginSuccess = useCallback(async (authData, backendCoordinates) => {
+        // authData contains {user: {id, name}, accessToken, refreshToken}
+        const user = authData.user || authData; // Support both formats for backward compatibility
         console.log('Login successful:', user.name)
         setCurrentUser(user)
         // Clear any existing local data first
@@ -93,28 +96,44 @@ export default function App() {
         try {
             // Get all points from IndexedDB
             const allPoints = await db.exploredPoints.toArray()
-            console.log(`Syncing ${allPoints.length} points to backend`)
+            console.log(`[LOGOUT] Found ${allPoints.length} points in IndexedDB`)
             if (allPoints.length > 0) {
-                // Convert to backend format: {x: longitude, y: latitude}
+                console.log('[LOGOUT] Sample point from IndexedDB:', allPoints[0])
+                // Convert to backend format: {x: longitude, y: latitude, timestamp: number}
+                // Backend expects TimestampedPoint[] format
                 const coordinates = allPoints.map(p => ({
                     x: p.longitude,
-                    y: p.latitude
+                    y: p.latitude,
+                    timestamp: p.timestamp || Date.now() // Use stored timestamp or current time
                 }))
+                console.log('[LOGOUT] Converted coordinates sample:', coordinates[0])
+                console.log(`[LOGOUT] Syncing ${coordinates.length} points to backend`)
 
-                await deleteUserCoordinates(currentUser.id);
-                console.log('Old backend coordinates deleted');
+                try {
+                    await deleteUserCoordinates();
+                    console.log('[LOGOUT] Old backend coordinates deleted');
+                } catch (deleteErr) {
+                    console.warn('[LOGOUT] Error deleting old coordinates (may not exist):', deleteErr);
+                    // Continue anyway
+                }
 
-                await saveCoordinatesToBackend(currentUser.id, coordinates);
-                console.log('New coordinates saved to backend');
+                await saveCoordinatesToBackend(coordinates);
+                console.log('[LOGOUT] New coordinates saved to backend');
+                lastSyncPointCount.current = allPoints.length; // Update sync count after logout
+            } else {
+                console.log('[LOGOUT] No points in IndexedDB to sync');
+                lastSyncPointCount.current = 0; // Reset sync count
             }
 
-            // Call backend logout
-            await logoutUser(currentUser.id)
+            // Call backend logout (no userId needed, uses token)
+            await logoutUser()
             console.log('Backend logout complete')
 
         } catch (err) {
             console.error('Sync/logout error:', err)
             // Still proceed with local logout even if sync fails
+            // Clear tokens in case of auth errors
+            clearTokens()
         }
         // Clear local IndexedDB
         await clearPoints()
@@ -140,35 +159,50 @@ export default function App() {
     }, [currentUser, isLoggingOut, clearPoints])
 
     // HANDLE APP CLOSE/BACKGROUND
+    // Note: Only syncs on actual page unload, not on tab visibility changes
+    // This prevents unnecessary API calls when switching tabs
     useEffect(() => {
         const handleBeforeUnload = async () => {
-            if (isLoggedIn && currentUser) {
-                // Quick sync attempt on close
-                try {
-                    const allPoints = await db.exploredPoints.toArray()
-                    if (allPoints.length > 0) {
-                        const coordinates = allPoints.map(p => ({
-                            x: p.longitude,
-                            y: p.latitude
-                        }))
-                        await saveCoordinatesToBackend(currentUser.id, coordinates)
-                    }
-                } catch (err) {
-                    console.error('Sync on close failed:', err)
+            if (!isLoggedIn || !currentUser) return;
+            
+            try {
+                const allPoints = await db.exploredPoints.toArray()
+                
+                // Only sync if:
+                // 1. There are points to save
+                // 2. The point count has changed since last sync (avoid redundant syncs)
+                if (allPoints.length > 0 && allPoints.length !== lastSyncPointCount.current) {
+                    console.log(`[SYNC] Syncing ${allPoints.length} points before page unload`);
+                    const coordinates = allPoints.map(p => ({
+                        x: p.longitude,
+                        y: p.latitude,
+                        timestamp: p.timestamp || Date.now()
+                    }))
+                    await saveCoordinatesToBackend(coordinates)
+                    lastSyncPointCount.current = allPoints.length; // Update sync count
                 }
+                // If no points or same count, silently skip (no API calls)
+            } catch (err) {
+                console.error('[SYNC] Sync on close failed:', err)
+                // Don't block page unload on sync failure
             }
         }
 
+        // Only sync on actual page unload (user closing tab/window/navigating away)
+        // Removed visibilitychange to prevent frequent unnecessary syncs
         window.addEventListener('beforeunload', handleBeforeUnload)
-        document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'hidden' && isLoggedIn) {
-                handleBeforeUnload()
-            }
-        })
+        
         return () => {
             window.removeEventListener('beforeunload', handleBeforeUnload)
         }
     }, [isLoggedIn, currentUser])
+
+    // Update sync count after successful logout sync
+    useEffect(() => {
+        if (!isLoggedIn) {
+            lastSyncPointCount.current = 0; // Reset when logged out
+        }
+    }, [isLoggedIn])
 
     // INITIALIZE MAP (only when logged in)
     useEffect(() => {
@@ -284,7 +318,10 @@ export default function App() {
         if (!spatialIndex.current.isLocationRevealed(latitude, longitude)) {
             await savePoint(latitude, longitude)
             lastSavedPos.current = { latitude, longitude }
-            console.log(`New point saved: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`)
+            console.log(`[GPS] New point saved to IndexedDB: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`)
+            // Verify it was saved
+            const count = await db.exploredPoints.count()
+            console.log(`[GPS] Total points in IndexedDB: ${count}`)
             renderFog()
         }
     }

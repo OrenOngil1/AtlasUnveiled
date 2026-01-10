@@ -2,20 +2,47 @@ import { eq, sql } from "drizzle-orm";
 import { db } from "../db/connection";
 import { discoveredCoordinatesTable } from "../db/schema";
 import type { Point, TimestampedPoint } from "../utilities/utilities";
-// TODO: implement use of JWT
+
 export const addUserCoordinatesModel = async(userId: number, CoordinatesList: TimestampedPoint[]): Promise<Point[]> => {
-    const rows = await db.insert(discoveredCoordinatesTable)
-            .values(CoordinatesList.map(coordinates => ({
-                userId: userId,
-                coordinates: sql`ST_SetSRID(ST_MakePoint(${coordinates.x}, ${coordinates.y}), 4326)`,
-                timestamp: new Date(coordinates.timestamp)
-            })
-        )
-    ).returning();
+    if (!CoordinatesList || CoordinatesList.length === 0) {
+        return [];
+    }
+
+    // Insert coordinates individually with ON CONFLICT DO NOTHING
+    // This approach works reliably with geometry types in composite primary keys
+    // and handles any edge cases (race conditions, etc.) gracefully
+    const inserted: Point[] = [];
     
-    const coordinatesInserted = rows.map(r => r.coordinates);
-    // console.log(`inserted to user=${rows[0]!.userId} coordinates list=${coordinatesInserted} from database`);
-    return coordinatesInserted;
+    for (const coord of CoordinatesList) {
+        try {
+            const rows = await db.insert(discoveredCoordinatesTable)
+                .values({
+                    userId: userId,
+                    coordinates: sql`ST_SetSRID(ST_MakePoint(${coord.x}, ${coord.y}), 4326)`,
+                    timestamp: new Date(coord.timestamp)
+                })
+                .onConflictDoNothing({
+                    target: [discoveredCoordinatesTable.userId, discoveredCoordinatesTable.coordinates]
+                })
+                .returning();
+            
+            if (rows.length > 0 && rows[0]) {
+                inserted.push(rows[0].coordinates);
+            }
+        } catch (error) {
+            // Log but continue - this coordinate might already exist
+            // This shouldn't happen with proper frontend logic, but handles edge cases
+            console.warn(`[MODEL] Coordinate (${coord.x}, ${coord.y}) skipped:`, error instanceof Error ? error.message : 'unknown error');
+        }
+    }
+    
+    if (inserted.length < CoordinatesList.length) {
+        console.log(`[MODEL] Inserted ${inserted.length} of ${CoordinatesList.length} coordinates for user ${userId} (${CoordinatesList.length - inserted.length} were duplicates or conflicts)`);
+    } else {
+        console.log(`[MODEL] Successfully inserted ${inserted.length} coordinates for user ${userId}`);
+    }
+    
+    return inserted;
 };
 
 export const getUserCoordinatesModel = async(userId: number): Promise<Point[]> => {

@@ -11,7 +11,12 @@ export const getCoordinatesController = async(req: AuthenticatedRequest, res: Re
 export const addCoordinatesController = async(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     const userId = req.userId!;
     const coordinates = req.body.coordinates as TimestampedPoint[];
+    console.log(`[BACKEND] addCoordinatesController: User ${userId} saving ${coordinates?.length || 0} coordinates`);
+    if (coordinates && coordinates.length > 0) {
+        console.log(`[BACKEND] First coordinate:`, coordinates[0]);
+    }
     const coordinatesAdded = await addCoordinatesService(userId, coordinates);
+    console.log(`[BACKEND] Successfully saved ${coordinatesAdded?.length || 0} coordinates`);
     res.status(201).json(coordinatesAdded);
 };
 

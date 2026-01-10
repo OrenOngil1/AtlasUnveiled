@@ -162,13 +162,16 @@ export async function fetchUserCoordinates() {
  * @returns {Promise<Array>} Saved coordinates
  */
 export async function saveCoordinatesToBackend(coordinates) {
+    // Early return - don't make API call if no coordinates
     if (!coordinates || coordinates.length === 0) {
-        return [];
+        return []; // Silently return, no need to log or make API calls
     }
+    
     const token = getAccessToken();
     if (!token) {
         throw new Error('Not authenticated');
     }
+    console.log(`saveCoordinatesToBackend: Attempting to save ${coordinates.length} coordinates`);
     const response = await fetch(`${API_BASE_URL}/coordinates/me`, {
         method: 'POST',
         headers: {
@@ -178,6 +181,8 @@ export async function saveCoordinatesToBackend(coordinates) {
         body: JSON.stringify({ coordinates }),
     });
     if (!response.ok) {
+        const errorText = await response.text();
+        console.error('saveCoordinatesToBackend: Failed response:', response.status, errorText);
         if (response.status === 401) {
             clearTokens();
             throw new Error('Authentication expired');
@@ -185,9 +190,11 @@ export async function saveCoordinatesToBackend(coordinates) {
         if (response.status === 404) {
             throw new Error('User not found');
         }
-        throw new Error('Failed to save coordinates');
+        throw new Error(`Failed to save coordinates: ${errorText}`);
     }
-    return response.json();
+    const result = await response.json();
+    console.log('saveCoordinatesToBackend: Successfully saved coordinates:', result);
+    return result;
 }
 
 /**
@@ -199,6 +206,7 @@ export async function deleteUserCoordinates() {
     if (!token) {
         throw new Error('Not authenticated');
     }
+    console.log('deleteUserCoordinates: Deleting existing coordinates');
     const response = await fetch(`${API_BASE_URL}/coordinates/me`, {
         method: 'DELETE',
         headers: {
@@ -207,13 +215,22 @@ export async function deleteUserCoordinates() {
         },
     });
     if (!response.ok) {
+        const errorText = await response.text();
+        console.error('deleteUserCoordinates: Failed response:', response.status, errorText);
         if (response.status === 401) {
             clearTokens();
             throw new Error('Authentication expired');
         }
-        throw new Error('Failed to delete coordinates');
+        // 404 is OK - means no coordinates to delete
+        if (response.status === 404) {
+            console.log('deleteUserCoordinates: No coordinates to delete (404)');
+            return [];
+        }
+        throw new Error(`Failed to delete coordinates: ${errorText}`);
     }
-    return response.json();
+    const result = await response.json();
+    console.log('deleteUserCoordinates: Successfully deleted coordinates');
+    return result;
 }
 
 /**
