@@ -91,7 +91,6 @@ export async function registerUser(username, password) {
 
 /**
  * Logout user (requires authentication token)
- * BUG FIX: Only clears tokens AFTER successful logout response
  * @returns {Promise<void>}
  */
 export async function logoutUser() {
@@ -100,8 +99,6 @@ export async function logoutUser() {
         // Already logged out locally
         return;
     }
-    
-    // Make logout request first
     const response = await fetch(`${API_BASE_URL}/auth/logout`, {
         method: 'POST',
         headers: {
@@ -109,22 +106,18 @@ export async function logoutUser() {
             'Authorization': `Bearer ${token}`,
         },
     });
-    
-    // Only clear tokens if logout was successful
-    // This ensures client state stays consistent with server state
-    if (response.ok) {
-        clearTokens();
-        return true;
+    // BUG FIX: Only clear tokens after successful logout
+    // This ensures we can retry if logout fails and maintains consistency
+    if (!response.ok) {
+        throw new Error('Logout failed');
     }
-    
-    // If logout failed, throw error but keep tokens
-    // This allows retry and prevents inconsistent state
-    throw new Error('Logout failed');
+    // Clear tokens only after successful response
+    clearTokens();
+    return true;
 }
 
 /**
  * Fetch user's explored coordinates from backend (requires authentication token)
- * BUG FIX: Handles both { coordinates: [...] } and [...] response formats
  * @returns {Promise<Array<{x: number, y: number}>>} Array of coordinates
  */
 export async function fetchUserCoordinates() {
@@ -150,19 +143,15 @@ export async function fetchUserCoordinates() {
         throw new Error('Failed to fetch coordinates');
     }
     const data = await response.json();
-    
-    // Handle both response formats:
-    // 1. Backend format: { coordinates: [...] }
-    // 2. Direct array format: [...]
+    // BUG FIX: Handle both response formats defensively
+    // Backend returns { coordinates: Point[] }, but handle array format too
     if (Array.isArray(data)) {
         return data;
     }
     if (data && Array.isArray(data.coordinates)) {
         return data.coordinates;
     }
-    
-    // If response structure is unexpected, log warning and return empty array
-    // This prevents silent data loss - we know something went wrong
+    // If format is unexpected, log warning but return empty array to prevent crash
     console.warn('Unexpected coordinates response format:', data);
     return [];
 }
