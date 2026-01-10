@@ -15,7 +15,8 @@
     "db:reset": "docker-compose down -v && docker-compose up -d",
     "db:generate": "drizzle-kit generate --config ./drizzle.config.ts",
     "db:migrate": "tsx --env-file=.env scripts/migrate.ts",
-    "db:seed": "tsx --env-file=.env scripts/seed.ts"
+    "db:seed": "tsx --env-file=.env scripts/seed.ts",
+    "db:studio": "drizzle-kit studio --config ./drizzle.config.ts"
   },
   "author": "",
   "license": "ISC",
