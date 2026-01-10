@@ -21,23 +21,14 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-<<<<<<< HEAD
-    "cors": "^2.8.5",
-    "dotenv": "^17.2.3",
-=======
     "bcrypt": "^6.0.0",
->>>>>>> e14b08f64b020efeab8a4d1996fd23641f5da467
     "drizzle-orm": "^0.45.0",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.3",
     "pg": "^8.16.3"
   },
   "devDependencies": {
-<<<<<<< HEAD
-    "@types/cors": "^2.8.19",
-=======
     "@types/bcrypt": "^6.0.0",
->>>>>>> e14b08f64b020efeab8a4d1996fd23641f5da467
     "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^24.10.1",
