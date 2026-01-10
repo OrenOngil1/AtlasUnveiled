@@ -61,7 +61,7 @@ export async function logoutUser(userId) {
     if (!response.ok) {
         throw new Error('Logout failed');
     }
-    return response.json();
+    return true;
 }
 
 /**
@@ -126,7 +126,6 @@ export async function deleteUserCoordinates(userId) {
     if (!response.ok) {
         throw new Error('Failed to delete coordinates');
     }
-
     return response.json();
 }
 
