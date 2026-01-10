@@ -1,18 +1,13 @@
 import express from "express";
-import { createUserController, loginUserController, logoutUserController } from "../controllers/user.controllers";
 import { getUserController, deleteUserController } from "../controllers/user.controllers";
-import { validateIdBody, validateIdParam, validateUserNameAndPassword } from "../middleware/validation.middleware";
+import { authenticateAccessToken } from "../middleware/auth.middleware";
 
 const router = express.Router();
 
-router.post("/", validateUserNameAndPassword, createUserController);
+router.use(authenticateAccessToken);
 
-router.post("/login", validateUserNameAndPassword, loginUserController);
+router.get('/me', getUserController);
 
-router.post("/logout", validateIdBody, logoutUserController);
-
-router.get("/:userId", validateIdParam, getUserController);
-
-router.delete("/:userId", validateIdParam, deleteUserController);
+router.delete('/me', deleteUserController);
 
 export default router;

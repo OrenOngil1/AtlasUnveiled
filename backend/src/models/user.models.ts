@@ -1,50 +1,63 @@
 import { db } from "../db/connection";
 import { usersTable } from "../db/schema";
 import { eq } from "drizzle-orm";
-import type { UserData } from "../utilities/utilities";
+import type { User, UserAccount } from "../utilities/utilities";
 // TODO: implement use of JWT
-export const getUserByIdModel = async(userId: number): Promise<UserData | undefined> => {
-    const rows = await db.select({ id: usersTable.id, name: usersTable.name })
-        .from(usersTable)
-        .where(eq(usersTable.id, userId));
-    // console.log(`got user ${JSON.stringify(rows[0])} by id ${userId} from database`);
-    return rows[0];
-}
 
-export const getUserByNameModel = async(username: string): Promise<UserData | undefined> => {
-    const rows = await db.select({ id: usersTable.id, name: usersTable.name })
-        .from(usersTable)
-        .where(eq(usersTable.name, username));
+// Returns user data WITHOUT password (safe for general use)
+export const getUserByIdModel = async(id: number): Promise<User | undefined> => {
+    // const rows = await db.select({ id: usersTable.id, name: usersTable.name })
+    //     .from(usersTable)
+    //     .where(eq(usersTable.id, id));
+    const user = await db.query.usersTable.findFirst({
+        where: eq(usersTable.id, id),
+        columns: { id: true, name: true }
+    });
+    // console.log(`got user ${JSON.stringify(rows[0])} by id ${id} from database`);
+    return user;
+};
+
+// Returns user data WITH password (for login use)
+export const getUserByNameModel = async(name: string): Promise<UserAccount | undefined> => {
+    // const rows = await db.select()
+    //     .from(usersTable)
+    //     .where(eq(usersTable.name, username));
+    const user = await db.query.usersTable.findFirst({
+        where: eq(usersTable.name, name),
+        columns: { id: true, name: true, hashedPassword: true }
+    });
 
     // console.log(`got user=${JSON.stringify(rows[0])} by username=${username} from database`);
-    return rows[0];
-}
-// TODO: add password encryption later
-export const addUserModel = async(username: string, password: string): Promise<UserData> => {
+    return user;
+};
+
+export const addUserModel = async(name: string, hashedPassword: string): Promise<User | undefined> => {
     const rows = await db.insert(usersTable)
-        .values({ name: username, password: password })
-        .returning();
+        .values({ name, hashedPassword })
+        .returning({ id: usersTable.id, name: usersTable.name });
 
-    // console.log(`added user=${JSON.stringify(rows[0])} to database`);
-    return {id: rows[0]!.id, name: rows[0]!.name };
-}
+    const user = rows[0];
+    // console.log(`added user=${JSON.stringify(user)} to database`);
+    return user;
+};
 
-export const deleteUserModel = async(userId: number): Promise<UserData> => {
+
+
+export const deleteUserModel = async(userId: number): Promise<User | undefined> => {
     const rows = await db.delete(usersTable)
         .where(eq(usersTable.id, userId))
-        .returning();
-    // console.log(`deleted user=${JSON.stringify(rows[0])} from database`);
-    return rows[0] ?? { id: rows[0]!.id, name: rows[0]!.name };
-}
+        .returning({ id: usersTable.id, name: usersTable.name });
 
-export const getAllUsersModel = async(): Promise<UserData[]> => {
-    return await db.select({ id: usersTable.id, name: usersTable.name })
-        .from(usersTable);
-}
-// This function is for testing only!
-export const deleteAllUsersModel = async(): Promise<UserData[]> => {
-    const rows = await db.delete(usersTable).returning();
-    // console.log(`deleted users=${rows} from database`);
-    return rows.map(r => ({ id: r.id, name: r.name }));
-}
+    // console.log(`deleted user=${JSON.stringify(rows[0])} from database`);
+    const user = rows[0];;
+    return user;
+};
+
+export const resetPasswordModel = async(userId: number, newHashedPassword: string): Promise<void> => {
+    await db.update(usersTable)
+        .set({ hashedPassword: newHashedPassword })
+        .where(eq(usersTable.id, userId));    
+
+    // console.log(`reset password for userId=${userId}`);
+};
 

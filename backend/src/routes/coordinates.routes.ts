@@ -1,13 +1,16 @@
 import express from "express";
 import { getCoordinatesController, addCoordinatesController, deleteCoordinatesController } from "../controllers/coordinates.controller";
-import { validateCoordinates, validateIdParam } from "../middleware/validation.middleware";
+import { validateTimeStampedCoordinates } from "../middleware/validation.middleware";
+import { authenticateAccessToken } from "../middleware/auth.middleware";
 
 const router = express.Router();
 
-router.get("/:userId", validateIdParam, getCoordinatesController);
+router.use(authenticateAccessToken);
 
-router.post("/:userId", validateIdParam, validateCoordinates, addCoordinatesController);
+router.get('/me', getCoordinatesController);
 
-router.delete("/:userId", validateIdParam, deleteCoordinatesController);
+router.post('/me', validateTimeStampedCoordinates, addCoordinatesController);
+
+router.delete('/me', deleteCoordinatesController);
 
 export default router;

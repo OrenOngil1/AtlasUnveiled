@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgis/postgis:15-3.3
+    container_name: atlas-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: openSesame1234
+      POSTGRES_DB: AtlasUnveiled_DB
+    ports:
+      - "5432:5432"
+    volumes:
+      - atlas_data:/var/lib/postgresql/data
+
+volumes:
+  atlas_data:

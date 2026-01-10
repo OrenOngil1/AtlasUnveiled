@@ -7,21 +7,39 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "tsx",
     "start": "tsx --env-file=.env src/index.ts",
-    "dev": "tsx watch --env-file=.env src/index.ts"
+    "dev": "tsx watch --env-file=.env src/index.ts",
+    "db:start": "docker-compose up -d",
+    "db:stop": "docker-compose down",
+    "db:restart": "docker-compose restart",
+    "db:logs": "docker logs -f atlas-postgres",
+    "db:reset": "docker-compose down -v && docker-compose up -d",
+    "db:generate": "drizzle-kit generate --config ./drizzle.config.ts",
+    "db:migrate": "tsx --env-file=.env scripts/migrate.ts",
+    "db:seed": "tsx --env-file=.env scripts/seed.ts"
   },
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
+<<<<<<< HEAD
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
+=======
+    "bcrypt": "^6.0.0",
+>>>>>>> e14b08f64b020efeab8a4d1996fd23641f5da467
     "drizzle-orm": "^0.45.0",
     "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.3",
     "pg": "^8.16.3"
   },
   "devDependencies": {
+<<<<<<< HEAD
     "@types/cors": "^2.8.19",
+=======
+    "@types/bcrypt": "^6.0.0",
+>>>>>>> e14b08f64b020efeab8a4d1996fd23641f5da467
     "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^24.10.1",
     "@types/pg": "^8.15.6",
     "drizzle-kit": "^0.31.8",
