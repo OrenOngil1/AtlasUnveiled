@@ -12,8 +12,9 @@ import { SpatialIndex, metersToPixels, calculateDistance } from './utils/spatial
 import LoginScreen from './components/LoginScreen'
 
 // Services
-import { logoutUser, saveCoordinatesToBackend } from './services/apiService'
-
+import { logoutUser, saveCoordinatesToBackend, deleteUserCoordinates } from './services/apiService'
+// At the top, after imports
+window.__db = db;
 // CONSTANTS
 const FOG_COLOR = '#1a1a2e'
 const FOG_OPACITY = 1
@@ -99,8 +100,12 @@ export default function App() {
                     x: p.longitude,
                     y: p.latitude
                 }))
-                await saveCoordinatesToBackend(currentUser.id, coordinates)
-                console.log('Points synced to backend')
+
+                await deleteUserCoordinates(currentUser.id);
+                console.log('Old backend coordinates deleted');
+
+                await saveCoordinatesToBackend(currentUser.id, coordinates);
+                console.log('New coordinates saved to backend');
             }
 
             // Call backend logout
