@@ -51,32 +51,22 @@ export async function saveExploredPoint(latitude: number, longitude: number): Pr
     return { ...point, id };
 }
 
-/**
- * Get all explored points
- */
+
 export async function getAllPoints(): Promise<ExploredPoint[]> {
     return await db.exploredPoints.toArray();
 }
 
-/**
- * Clear all explored points
- * Used when user logs out
- */
+
 export async function clearAllPoints(): Promise<void> {
     await db.exploredPoints.clear();
     console.log('IndexedDB exploredPoints table cleared');
 }
 
-/**
- * Get point count
- */
+
 export async function getPointCount(): Promise<number> {
     return await db.exploredPoints.count();
 }
 
-/**
- * Bulk add points (for loading from backend)
- */
 export async function bulkAddPoints(points: Array<{ latitude: number; longitude: number }>): Promise<void> {
     const pointsWithTimestamp: ExploredPoint[] = points.map(p => ({
         latitude: p.latitude,
@@ -87,20 +77,11 @@ export async function bulkAddPoints(points: Array<{ latitude: number; longitude:
     await db.exploredPoints.bulkAdd(pointsWithTimestamp);
     console.log(`Bulk added ${points.length} points to IndexedDB`);
 }
-// ══════════════════════════════════════════════════════════════════════
-// USER OPERATIONS
-// ══════════════════════════════════════════════════════════════════════
 
-/**
- * Get current user (first user in table)
- */
 export async function getCurrentUser(): Promise<User | undefined> {
     return await db.users.toCollection().first();
 }
 
-/**
- * Create a new user
- */
 export async function createUser(username: string): Promise<User> {
     const user: User = {
         username,
@@ -111,16 +92,10 @@ export async function createUser(username: string): Promise<User> {
     return { ...user, id };
 }
 
-/**
- * Update username
- */
 export async function updateUsername(userId: number, newUsername: string): Promise<void> {
     await db.users.update(userId, { username: newUsername });
 }
 
-/**
- * Add distance to user's total
- */
 export async function addDistance(userId: number, meters: number): Promise<void> {
     const user = await db.users.get(userId);
     if (user) {
@@ -130,9 +105,6 @@ export async function addDistance(userId: number, meters: number): Promise<void>
     }
 }
 
-/**
- * Clear all users (for logout)
- */
 export async function clearAllUsers(): Promise<void> {
     await db.users.clear();
 }

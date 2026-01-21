@@ -4,43 +4,27 @@ const API_BASE_URL = 'http://localhost:3000';
 const ACCESS_TOKEN_KEY = 'atlas_access_token';
 const REFRESH_TOKEN_KEY = 'atlas_refresh_token';
 
-/**
- * Get stored access token
- * @returns {string|null}
- */
+//Get stored access token
 export function getAccessToken() {
     return localStorage.getItem(ACCESS_TOKEN_KEY);
 }
 
-/**
- * Store access token
- * @param {string} token 
- */
+//Store access token
 export function setAccessToken(token) {
     localStorage.setItem(ACCESS_TOKEN_KEY, token);
 }
 
-/**
- * Store refresh token
- * @param {string} token 
- */
+//Store refresh token
 export function setRefreshToken(token) {
     localStorage.setItem(REFRESH_TOKEN_KEY, token);
 }
 
-/**
- * Clear stored tokens
- */
+// Clear stored tokens
 export function clearTokens() {
     localStorage.removeItem(ACCESS_TOKEN_KEY);
     localStorage.removeItem(REFRESH_TOKEN_KEY);
 }
 
-/**
- * @param {string} username 
- * @param {string} password 
- * @returns {Promise<{user: {id: number, name: string}, accessToken: string, refreshToken: string}>} User data with tokens
- */
 export async function loginUser(username, password) {
     const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
@@ -62,12 +46,7 @@ export async function loginUser(username, password) {
     return data;
 }
 
-/**
- * Register a new user
- * @param {string} username 
- * @param {string} password 
- * @returns {Promise<{user: {id: number, name: string}, accessToken: string, refreshToken: string}>} Created user data with tokens
- */
+//Register a new user
 export async function registerUser(username, password) {
     const response = await fetch(`${API_BASE_URL}/auth/register`, {
         method: 'POST',
@@ -89,14 +68,10 @@ export async function registerUser(username, password) {
     return data;
 }
 
-/**
- * Logout user (requires authentication token)
- * @returns {Promise<void>}
- */
+//Logout user
 export async function logoutUser() {
     const token = getAccessToken();
     if (!token) {
-        // Already logged out locally
         return;
     }
     const response = await fetch(`${API_BASE_URL}/auth/logout`, {
@@ -106,8 +81,6 @@ export async function logoutUser() {
             'Authorization': `Bearer ${token}`,
         },
     });
-    // BUG FIX: Only clear tokens after successful logout
-    // This ensures we can retry if logout fails and maintains consistency
     if (!response.ok) {
         throw new Error('Logout failed');
     }
@@ -116,10 +89,7 @@ export async function logoutUser() {
     return true;
 }
 
-/**
- * Fetch user's explored coordinates from backend (requires authentication token)
- * @returns {Promise<Array<{x: number, y: number}>>} Array of coordinates
- */
+//Fetch user's explored coordinates from backend
 export async function fetchUserCoordinates() {
     const token = getAccessToken();
     if (!token) {
@@ -143,30 +113,21 @@ export async function fetchUserCoordinates() {
         throw new Error('Failed to fetch coordinates');
     }
     const data = await response.json();
-    // BUG FIX: Handle both response formats defensively
-    // Backend returns { coordinates: Point[] }, but handle array format too
     if (Array.isArray(data)) {
         return data;
     }
     if (data && Array.isArray(data.coordinates)) {
         return data.coordinates;
     }
-    // If format is unexpected, log warning but return empty array to prevent crash
     console.warn('Unexpected coordinates response format:', data);
     return [];
 }
 
-/**
- * Save coordinates to backend (requires authentication token)
- * @param {Array<{x: number, y: number, timestamp: number}>} coordinates - Array of {x: longitude, y: latitude, timestamp: number}
- * @returns {Promise<Array>} Saved coordinates
- */
+// Save coordinates to backend
 export async function saveCoordinatesToBackend(coordinates) {
-    // Early return - don't make API call if no coordinates
     if (!coordinates || coordinates.length === 0) {
-        return []; // Silently return, no need to log or make API calls
+        return [];
     }
-    
     const token = getAccessToken();
     if (!token) {
         throw new Error('Not authenticated');
@@ -197,10 +158,7 @@ export async function saveCoordinatesToBackend(coordinates) {
     return result;
 }
 
-/**
- * Delete all user's coordinates from backend (requires authentication token)
- * @returns {Promise<Array>} Deleted coordinates
- */
+//Delete all user's coordinates from backend 
 export async function deleteUserCoordinates() {
     const token = getAccessToken();
     if (!token) {
@@ -221,7 +179,6 @@ export async function deleteUserCoordinates() {
             clearTokens();
             throw new Error('Authentication expired');
         }
-        // 404 is OK - means no coordinates to delete
         if (response.status === 404) {
             console.log('deleteUserCoordinates: No coordinates to delete (404)');
             return [];
@@ -233,9 +190,6 @@ export async function deleteUserCoordinates() {
     return result;
 }
 
-/**
- * @param {string} url 
- */
 export function setApiBaseUrl(url) {
     console.log('To change API URL, modify API_BASE_URL in apiService.js');
 }

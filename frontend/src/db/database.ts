@@ -19,7 +19,6 @@ class AtlasDatabase extends Dexie {
 
   constructor() {
     super('AtlasUnveiledDB');
-
     this.version(1).stores({
       exploredPoints: '++id, timestamp, [latitude+longitude]',
       users: '++id, username'
@@ -28,7 +27,6 @@ class AtlasDatabase extends Dexie {
 }
 
 export const db = new AtlasDatabase();
-
 export async function initializeDatabase(): Promise<void> {
   try {
     await db.open();
@@ -38,5 +36,4 @@ export async function initializeDatabase(): Promise<void> {
     throw error;
   }
 }
-
 export default db;

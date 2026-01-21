@@ -13,15 +13,10 @@ export function calculateDistance(lat1, lng1, lat2, lng2) {
 
 
 export function getGridCell(lat, lng, cellSizeMeters) {
-  // Approximate meters per degree at the equator
   const metersPerDegreeLat = 111320
   const metersPerDegreeLng = 111320 * Math.cos(lat * Math.PI / 180)
-  
-  // Convert cell size to degrees
   const cellSizeLat = cellSizeMeters / metersPerDegreeLat
   const cellSizeLng = cellSizeMeters / metersPerDegreeLng
-  
-  // Calculate grid cell indices
   const cellX = Math.floor(lng / cellSizeLng)
   const cellY = Math.floor(lat / cellSizeLat)
   return `${cellX},${cellY}`
@@ -53,7 +48,6 @@ export class SpatialIndex {
     this.grid = new Map()
     this.allPoints = []
   }
-
   buildFromPoints(points) {
     this.grid.clear()
     this.allPoints = [...points]
@@ -61,7 +55,6 @@ export class SpatialIndex {
       this.addToGrid(point.latitude, point.longitude)
     }
   }
-
    //Add a point to the grid
   addToGrid(lat, lng) {
     const cellKey = getGridCell(lat, lng, this.cellSize)
@@ -70,7 +63,6 @@ export class SpatialIndex {
     }
     this.grid.get(cellKey).push({ lat, lng })
   }
-
 
   isLocationRevealed(lat, lng) {
     const cellsToCheck = getNeighborCells(lat, lng, this.cellSize)
@@ -87,7 +79,6 @@ export class SpatialIndex {
     return false
   }
 
-
   getClusteredPoints() {
     const clustered = []
     const used = new Set()
@@ -96,7 +87,6 @@ export class SpatialIndex {
       const point = this.allPoints[i]
       clustered.push(point)
       used.add(i)
-      // Mark all points within clearRadius as "used" (merged into this cluster)
       for (let j = i + 1; j < this.allPoints.length; j++) {
         if (used.has(j)) continue
         const other = this.allPoints[j]
@@ -104,7 +94,6 @@ export class SpatialIndex {
           point.latitude, point.longitude,
           other.latitude, other.longitude
         )
-        // If points overlap significantly (at least 70%), merge them
         if (distance < this.clearRadius * 0.7) {
           used.add(j)
         }

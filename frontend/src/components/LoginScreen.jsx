@@ -12,7 +12,6 @@ const PASSWORD_REQUIREMENTS = {
 // Validate password strength on frontend
 function validatePassword(password) {
     const errors = [];
-    
     if (password.length < PASSWORD_REQUIREMENTS.minLength) {
         errors.push(`At least ${PASSWORD_REQUIREMENTS.minLength} characters`);
     }
@@ -28,7 +27,6 @@ function validatePassword(password) {
     if (PASSWORD_REQUIREMENTS.requireSpecial && !/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
         errors.push('One special character (!@#$%^&*...)');
     }
-    
     return errors;
 }
 
@@ -45,12 +43,10 @@ export default function LoginScreen({ onLoginSuccess }) {
     const [passwordErrors, setPasswordErrors] = useState([]);
     const [isRegisterMode, setIsRegisterMode] = useState(false);
     const [showPasswordRequirements, setShowPasswordRequirements] = useState(false);
-
     // Handle password input change
     const handlePasswordChange = (e) => {
         const newPassword = e.target.value;
         setPassword(newPassword);
-        
         // Only validate in register mode
         if (isRegisterMode && newPassword.length > 0) {
             const errors = validatePassword(newPassword);
@@ -61,11 +57,9 @@ export default function LoginScreen({ onLoginSuccess }) {
             setShowPasswordRequirements(false);
         }
     };
-
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
-        
         // Frontend validation for registration
         if (isRegisterMode) {
             if (!isPasswordStrong(password)) {
@@ -73,7 +67,6 @@ export default function LoginScreen({ onLoginSuccess }) {
                 return;
             }
         }
-        
         setIsLoading(true);
         try {
             let authData;
@@ -88,20 +81,19 @@ export default function LoginScreen({ onLoginSuccess }) {
                 authData = await loginUser(username, password);
                 console.log('User logged in:', authData.user);
             }
-            // Fetch user's coordinates from backend (uses stored token)
+            // Fetch user's coordinates from backend
             let coordinates = [];
             try {
                 coordinates = await fetchUserCoordinates();
                 console.log(`Fetched ${coordinates.length} coordinates from backend`);
             } catch (err) {
                 console.log('No existing coordinates or fetch failed:', err.message);
-                // Continue anyway - user may be new or have no data
             }
             onLoginSuccess(authData, coordinates);
 
         } catch (err) {
             console.error('Auth error:', err);
-            // Parse error message for user-friendly display
+            // Parse error message
             const errorMessage = err.message || 'Authentication failed';
             if (isRegisterMode) {
                 // Registration errors

@@ -18,8 +18,7 @@ window.__db = db;
 // CONSTANTS
 const FOG_COLOR = '#1a1a2e'
 const FOG_OPACITY = 1
-const CLEAR_RADIUS = 40 // meters
-
+const CLEAR_RADIUS = 40
 const UPDATE_INTERVAL = 5000 // 5 seconds between GPS checks
 
 
@@ -108,13 +107,11 @@ export default function App() {
                 }))
                 console.log('[LOGOUT] Converted coordinates sample:', coordinates[0])
                 console.log(`[LOGOUT] Syncing ${coordinates.length} points to backend`)
-
                 try {
                     await deleteUserCoordinates();
                     console.log('[LOGOUT] Old backend coordinates deleted');
                 } catch (deleteErr) {
                     console.warn('[LOGOUT] Error deleting old coordinates (may not exist):', deleteErr);
-                    // Continue anyway
                 }
 
                 await saveCoordinatesToBackend(coordinates);
@@ -125,7 +122,7 @@ export default function App() {
                 lastSyncPointCount.current = 0; // Reset sync count
             }
 
-            // Call backend logout (no userId needed, uses token)
+            // Call backend logout
             await logoutUser()
             console.log('Backend logout complete')
 
@@ -158,19 +155,15 @@ export default function App() {
         }
     }, [currentUser, isLoggingOut, clearPoints])
 
-    // HANDLE APP CLOSE/BACKGROUND
-    // Note: Only syncs on actual page unload, not on tab visibility changes
-    // This prevents unnecessary API calls when switching tabs
+    // HANDLE CLOSE
     useEffect(() => {
         const handleBeforeUnload = async () => {
             if (!isLoggedIn || !currentUser) return;
-            
             try {
                 const allPoints = await db.exploredPoints.toArray()
-                
                 // Only sync if:
                 // 1. There are points to save
-                // 2. The point count has changed since last sync (avoid redundant syncs)
+                // 2. The point count has changed since last sync
                 if (allPoints.length > 0 && allPoints.length !== lastSyncPointCount.current) {
                     console.log(`[SYNC] Syncing ${allPoints.length} points before page unload`);
                     const coordinates = allPoints.map(p => ({
@@ -179,32 +172,25 @@ export default function App() {
                         timestamp: p.timestamp || Date.now()
                     }))
                     await saveCoordinatesToBackend(coordinates)
-                    lastSyncPointCount.current = allPoints.length; // Update sync count
+                    lastSyncPointCount.current = allPoints.length;
                 }
-                // If no points or same count, silently skip (no API calls)
             } catch (err) {
                 console.error('[SYNC] Sync on close failed:', err)
-                // Don't block page unload on sync failure
             }
         }
 
-        // Only sync on actual page unload (user closing tab/window/navigating away)
-        // Removed visibilitychange to prevent frequent unnecessary syncs
         window.addEventListener('beforeunload', handleBeforeUnload)
-        
         return () => {
             window.removeEventListener('beforeunload', handleBeforeUnload)
         }
     }, [isLoggedIn, currentUser])
-
-    // Update sync count after successful logout sync
     useEffect(() => {
         if (!isLoggedIn) {
-            lastSyncPointCount.current = 0; // Reset when logged out
+            lastSyncPointCount.current = 0;
         }
     }, [isLoggedIn])
 
-    // INITIALIZE MAP (only when logged in)
+    // INITIALIZE MAP
     useEffect(() => {
         if (!isLoggedIn || !dbReady || map.current) return
         // Create map
@@ -215,7 +201,6 @@ export default function App() {
             zoom: 15,
             attributionControl: false
         })
-
         map.current.on('load', () => {
             console.log('🗺️ Map loaded')
             setMapLoaded(true)
@@ -265,7 +250,6 @@ export default function App() {
             ctx.arc(screenPos.x, screenPos.y, radiusPixels, 0, Math.PI * 2)
             ctx.fill()
         })
-        // Reset composite operation
         ctx.globalCompositeOperation = 'source-over'
     }, [exploredPoints])
     // Re-render fog when points change
@@ -298,7 +282,6 @@ export default function App() {
         // Periodic updates
         trackingInterval.current = setInterval(updatePosition, UPDATE_INTERVAL)
     }
-
     const handleNewPosition = async (latitude, longitude) => {
         if (!map.current) return
         // Update/create user marker
@@ -307,7 +290,6 @@ export default function App() {
             el.className = 'user-marker'
             el.innerHTML = '📍'
             el.style.fontSize = '24px'
-
             userMarker.current = new maplibregl.Marker({ element: el })
                 .setLngLat([longitude, latitude])
                 .addTo(map.current)
@@ -342,7 +324,7 @@ export default function App() {
             </div>
         )
     }
-    // Main app view (NO STATUS BAR - as requested)
+    // Main app view
     return (
         <div className="app-container">
             {/* Map Container */}

@@ -1,8 +1,0 @@
-{
-  "appId": "com.atlasunveiled.app",
-  "appName": "Atlas Unveiled",
-  "webDir": "dist",
-  "server": {
-    "androidScheme": "https"
-  }
-}
