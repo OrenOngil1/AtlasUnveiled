@@ -13,14 +13,38 @@ import LoginScreen from './components/LoginScreen'
 
 // Services
 import { logoutUser, saveCoordinatesToBackend, deleteUserCoordinates, clearTokens } from './services/apiService'
-// At the top, after imports
+
 window.__db = db;
+
 // CONSTANTS
 const FOG_COLOR = '#1a1a2e'
 const FOG_OPACITY = 1
 const CLEAR_RADIUS = 40
 const UPDATE_INTERVAL = 5000 // 5 seconds between GPS checks
 
+const STANDARD_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
+const SATELLITE_STYLE = {
+    version: 8,
+    sources: {
+        'satellite-tiles': {
+            type: 'raster',
+            tiles: [
+                'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+            ],
+            tileSize: 256,
+            attribution: '&copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+        }
+    },
+    layers: [
+        {
+            id: 'satellite-layer',
+            type: 'raster',
+            source: 'satellite-tiles',
+            minzoom: 0,
+            maxzoom: 22
+        }
+    ]
+};
 
 export default function App() {
     // REFS
@@ -41,6 +65,9 @@ export default function App() {
     const [dbReady, setDbReady] = useState(false)
     const [mapLoaded, setMapLoaded] = useState(false)
     const [isLoggingOut, setIsLoggingOut] = useState(false)
+
+    // Map state
+    const [isSatellite, setIsSatellite] = useState(false)
 
     // IndexedDB hook
     const { points: exploredPoints, savePoint, clearPoints } = useExploredPoints()
@@ -215,6 +242,12 @@ export default function App() {
             }
         }
     }, [isLoggedIn, dbReady])
+    
+    useEffect(() => {
+        if (map.current && mapLoaded) {
+            map.current.setStyle(isSatellite ? SATELLITE_STYLE : STANDARD_STYLE);
+        }
+    }, [isSatellite, mapLoaded]);
 
     // FOG CANVAS SETUP
     const setupFogCanvas = () => {
@@ -344,6 +377,13 @@ export default function App() {
                         {isLoggingOut ? '⏳' : '🚪 Logout'}
                     </button>
                 </div>
+                <button 
+                    className="style-button"
+                    onClick={() => setIsSatellite(!isSatellite)}
+                    title={isSatellite ? "Switch to Map" : "Switch to Satellite"}
+                >
+                    {isSatellite ? '🗺️' : '🛰️'}
+                </button>
                 {/* Center on user button */}
                 <button 
                     className="center-button"
