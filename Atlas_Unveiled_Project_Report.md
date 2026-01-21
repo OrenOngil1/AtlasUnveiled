@@ -2,24 +2,21 @@
 
 ## A Fog-of-War Exploration Web App
 
-**By: Levi Vendro & Oren**
+**By: Levi Vendrov & Oren**
 
 ---
 
 ## Table of Contents
 
 1. [Introduction](#1-introduction)
-2. [The What?](#2-the-what?)
-3. [The How?](#3-the-how?)
+2. [Our Problems](#2-our-problems)
+3. [Our Solutions](#3-our-solutions)
 4. [System Architecture](#4-system-architecture)
 5. [Technology Stack](#5-technology-stack)
-6. [Core Features](#6-core-features)
-   - [Fog of War Mechanism](#61-fog-of-war-mechanism)
-   - [Spatial Indexing & Grid Logic](#62-spatial-indexing--grid-logic)
-7. [Database Design](#7-database-design)
-8. [Data Flow & Synchronization](#8-data-flow--synchronization)
-9. [Conclusions & Learnings](#9-conclusions--learnings)
-10. [Installation Instructions](#10-installation-instructions)
+6. [Database Design](#6-database-design)
+7. [Data Flow & Synchronization](#7-data-flow--synchronization)
+8. [Conclusions & Learnings](#8-conclusions--learnings)
+9. [Installation Instructions](#9-installation-instructions)
 
 ---
 
@@ -43,39 +40,127 @@ Atlas Unveiled is a local host web application that displays a regular map with 
 
 ---
 
-## 2. The What?
+## 2. Our Problems
 
-Creating a web exploration app that gamifies real-world movement presents several technical challenges:
+While creating Atlas Unveiled we encountered some challenges:
 
 ### Technical Challenges
 
 | Challenge | Description |
 |-----------|-------------|
-| **Fog of War Rendering** | Efficiently rendering fog overlay that updates in real-time |
 | **Data Persistence** | Storing exploration progress locally with cross-device sync |
 | **Offline Functionality** | App must work seamlessly without internet |
 | **Performance Optimization** | Managing a large number of coordinates without degrading performance |
 | **Redundant Point Prevention** | Avoiding saving overlapping coordinates that reveal the same area |
 
-### Key Requirements
+---
 
-1. Display an interactive map with a fog overlay
-2. Track GPS location and clear fog in real-time
-3. Store exploration data locally for offline use
-4. Synchronize data with server for backup and cross-device access
-5. Support user authentication
+## 3. Our Solutions
+
+The solutions employ a modern web technology stack with a **dual-database architecture** to achieve both offline functionality and cross-device synchronization as well as implemnting **grid-logic** to achieve performance optimization and saving redundant points.
+
+
+### 3.1 Dual Database Architecture
+
+A critical design decision was implementing a dual-database architecture:
+
+| Database | Location | Purpose | Technology |
+|----------|----------|---------|------------|
+| **IndexedDB** | User's device | Offline-first local storage | Dexie wrapper |
+| **PostgreSQL** | Server | Authoritative backup & sync | PostGIS extension |
+
+This enables:
+- **Offline Functionality**: data saves to local DB without internet
+- **Cross-device sync**: Login from any device to access your exploration
+- **Data Persistence**: Server backup prevents data loss
 
 ---
 
-## 3. The How?
+### 3.2 Spatial Indexing & Grid Logic
 
-The solution employs a modern web technology stack with a **dual-database architecture** to achieve both offline functionality and cross-device synchronization.
+This critical optimization prevents saving redundant points that reveal overlapping areas.
+
+#### The Problem
+
+Without optimization, GPS updates every few meters (or even the same location!!) would save thousands of overlapping points:
+
+```
+Without spatial filtering:
+    ●─5m──●─5m──●─5m──●─5m──●
+    |5m   |5m   |5m   |5m   |
+    ●─5m──●─5m──●─5m──●─5m──●
+    With 40m clear radius, all the points reveal 
+    essentially the huge ovelapping area so many 
+    of the are not needed and are wasted storage!!
+```
+
+#### The Solution: Minimum Distance Threshold
+
+Points are only saved when they're at least **35 meters** from all existing points.
+
+```
+The Math of Circle Overlap:
+
+Distance = 0m (same spot)     →  100% overlap
+Distance = 0.87 × radius      →   50% overlap
+Distance = radius             →   39% overlap
+Distance = 2 × radius         →    0% overlap
+
+For CLEAR_RADIUS = 40m
+SAVE_THRESHOLD = 0.87 × 40m ≈ 35m
+
+If points are 35m+ apart → ≤50% overlap → SAVE
+If points are <35m apart → >50% overlap → DON'T SAVE
+```
+But that floats another problem, we have to check distance from all the other points every time we want to add a new one!!
+In order to avoid that we use the grid system:
+
+#### The Grid System
+The grid is created upon succeful login and getting all of the existing points, then the world is divided into a virtual grid where each cell has a fixed size in meters.
+The function **getGridCell** converts a latitude/longitude into a unique string key (like "105,203").
+It calculates roughly how many meters exist per degree of latitude/longitude at that specific location to ensure grid cells are square in shape.
+
+The SpatialIndex class manages the grid in memory:
+It uses a JavaScript Map where the key is the cell ID and the value is an array of points inside that cell.
+The cellSize is the saveThreshold (which is calculated based on clearRadius as mentioned above). This ensures that if a point is close enough to matter, it will definitely be in the current cell or one of its 8 immediate neighbors meaning that we only have to check the distance from the points in the neighbor cells of our current point instead of all the points:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     SPATIAL INDEX GRID                      │
+│                                                             │
+│    ┌────┬────┬────┬────┬────┐                               │
+│    │ A  │ B  │ C  │ D  │ E  │                               │
+│    │    │ ●  │    │    │    │                               │
+│    ├────┼────┼────┼────┼────┤                               │
+│    │ F  │ G  │ H  │ I  │ J  │                               │
+│    │    │    │    │    │    │                               │
+│    ├────┼────┼────┼────┼────┤                               │
+│    │ K  │ L  │ M  │ N  │ O  │                               │
+│    │    │    │    │ ●  │    │                               │
+│    └────┴────┴────┴────┴────┘                               │
+│                                                             │
+│    New point arrives in cell H:                             │
+│    → Only check cells B, C, D, G, H, I, L, M, N (9 cells)   │
+│    → NOT all points in the entire database!                 │
+│                                                             │
+│    With 10,000 points across 1,000 cells:                   │
+│    Check ~9 cells instead of 10,000!                        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+Finally after saving a new point to the grid, the grid is rebuilt again and is ready for the next point.
+Rebuilding the grid for each point may take some time if we have a lot of points (from my testing ~700ms for 10,000 points) so it may not be ready for next point in time
+but it is not the case because there is a 5s delay in checking for an updated GPS location.
+
+---
+
+## 4. System Architecture
 
 ### High-Level Architecture Diagram
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                           MOBILE APP (Android APK)                          │
+│                               Frontend                                      │
 │                                                                             │
 │  ┌───────────────────────────────────────────────────────────────────────┐  │
 │  │                         REACT + VITE                                  │  │
@@ -124,99 +209,6 @@ The solution employs a modern web technology stack with a **dual-database archit
 │  └───────────────────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
-
-### Dual Database Architecture
-
-A critical design decision was implementing a dual-database architecture:
-
-| Database | Location | Purpose | Technology |
-|----------|----------|---------|------------|
-| **IndexedDB** | User's device | Offline-first local storage | Dexie wrapper |
-| **PostgreSQL** | Server | Authoritative backup & sync | PostGIS extension |
-
-This enables:
-- **Offline functionality**: App works without internet
-- **Cross-device sync**: Login from any device to access your exploration
-- **Data safety**: Server backup prevents data loss
-
----
-
-## 4. System Architecture
-
-### Component Flow Diagram
-
-```
-                              ┌──────────────────┐
-                              │   User Opens     │
-                              │      App         │
-                              └────────┬─────────┘
-                                       │
-                                       ▼
-                              ┌──────────────────┐
-                              │  Login Screen    │
-                              │  (Username/Pass) │
-                              └────────┬─────────┘
-                                       │
-                          ┌────────────┴────────────┐
-                          │                         │
-                          ▼                         ▼
-                 ┌─────────────────┐      ┌─────────────────┐
-                 │ POST /users/    │      │  POST /users    │
-                 │    login        │      │  (Register)     │
-                 └────────┬────────┘      └────────┬────────┘
-                          │                         │
-                          └────────────┬────────────┘
-                                       │
-                                       ▼
-                              ┌──────────────────┐
-                              │ GET /coordinates │
-                              │   /:userId       │
-                              └────────┬─────────┘
-                                       │
-                                       ▼
-                              ┌──────────────────┐
-                              │  Populate Local  │
-                              │    IndexedDB     │
-                              └────────┬─────────┘
-                                       │
-                                       ▼
-                              ┌──────────────────┐
-                              │   Map + Fog      │
-                              │    Display       │
-                              └────────┬─────────┘
-                                       │
-                          ┌────────────┴────────────┐
-                          │    GPS Tracking Loop    │
-                          └────────────┬────────────┘
-                                       │
-                                       ▼
-                              ┌──────────────────┐
-                              │  New Position    │
-                              │   Received       │
-                              └────────┬─────────┘
-                                       │
-                                       ▼
-                          ┌────────────────────────┐
-                          │  Is position ≥35m from │
-                          │   all existing points? │
-                          └────────────┬───────────┘
-                                       │
-                        ┌──────────────┴──────────────┐
-                        │                             │
-                       YES                           NO
-                        │                             │
-                        ▼                             ▼
-               ┌─────────────────┐          ┌─────────────────┐
-               │  Save to Local  │          │     Ignore      │
-               │    IndexedDB    │          │   (redundant)   │
-               └────────┬────────┘          └─────────────────┘
-                        │
-                        ▼
-               ┌─────────────────┐
-               │  Redraw Fog     │
-               │  with all pts   │
-               └─────────────────┘
-```
 ---
 
 ## 5. Technology Stack
@@ -246,88 +238,12 @@ This enables:
 | Tool | Purpose |
 |------|---------|
 | Drizzle Kit | Database migrations |
-| Android Studio | APK building |
 | Docker Compose | Local PostgreSQL setup |
 
 ---
 
-## 6. Core Features
 
-### 6.1 Fog of War Mechanism
-
-The fog of war is the central "gameplay" mechanic. The map is covered with a semi-transparent fog layer that gets cleared as the user explores the map. The user has a "light" aura around him that clears the fog at 40m radius.
-
----
-
-### 6.2 Spatial Indexing & Grid Logic
-
-A critical optimization prevents saving redundant points that reveal overlapping areas.
-
-#### The Problem
-
-Without optimization, GPS updates every few meters (or even the same location!!) would save thousands of overlapping points:
-
-```
-Without spatial filtering:
-    ●─5m──●─5m──●─5m──●─5m──●
-    |5m   |5m   |5m   |5m   |
-    ●─5m──●─5m──●─5m──●─5m──●
-    With 40m clear radius, all the points reveal 
-    essentially the huge ovelapping area so many 
-    of the are not needed and are wasted storage!!
-```
-
-#### The Solution: Minimum Distance Threshold
-
-Points are only saved when they're at least **35 meters** from all existing points.
-
-```
-The Math of Circle Overlap:
-
-Distance = 0m (same spot)     →  100% overlap
-Distance = 0.87 × radius      →   50% overlap
-Distance = radius             →   39% overlap
-Distance = 2 × radius         →    0% overlap
-
-For CLEAR_RADIUS = 40m (visual circle size):
-SAVE_THRESHOLD = 0.87 × 40m ≈ 35m
-
-If points are 35m+ apart → ≤50% overlap → SAVE
-If points are <35m apart → >50% overlap → DON'T SAVE
-```
-
-
-#### Grid-Based Lookup
-
-Instead of checking every saved point (O(n)), we use a grid for O(1) lookups:
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     SPATIAL INDEX GRID                      │
-│                                                             │
-│    ┌────┬────┬────┬────┬────┐                               │
-│    │ A  │ B  │ C  │ D  │ E  │                               │
-│    │    │ ●  │    │    │    │                               │
-│    ├────┼────┼────┼────┼────┤                               │
-│    │ F  │ G  │ H  │ I  │ J  │                               │
-│    │    │    │ ●  │    │ ●  │                               │
-│    ├────┼────┼────┼────┼────┤                               │
-│    │ K  │ L  │ M  │ N  │ O  │                               │
-│    │    │    │    │ ●  │    │                               │
-│    └────┴────┴────┴────┴────┘                               │
-│                                                             │
-│    New point arrives in cell H:                             │
-│    → Only check cells B, C, D, G, H, I, L, M, N (9 cells)   │
-│    → NOT all points in the entire database!                 │
-│                                                             │
-│    With 10,000 points across 1,000 cells:                   │
-│    Check ~9 cells instead of 10,000!                        │
-└─────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 7. Database Design
+## 6. Database Design
 
 ### Entity Relationship Diagram
 
@@ -343,7 +259,7 @@ Instead of checking every saved point (O(n)), we use a grid for O(1) lookups:
 
 ---
 
-## 8. Data Flow & Synchronization
+## 7. Data Flow & Synchronization
 
 ### Authentication Flow
 
@@ -373,7 +289,7 @@ Instead of checking every saved point (O(n)), we use a grid for O(1) lookups:
 │  7. Frontend saves to local IndexedDB                        │
 │                    │                                         │
 │                    ▼                                         │
-│  8. Fog renders with all saved locations cleared             │
+│  8. Fog renders & Grid is created                            │
 │                                                              │
 └──────────────────────────────────────────────────────────────┘
 ```
@@ -442,29 +358,28 @@ Instead of checking every saved point (O(n)), we use a grid for O(1) lookups:
 
 ---
 
-## 9. Conclusions & Learnings
+## 8. Conclusions & Learnings
 
 ### Key Technical Learnings
 
 | Learning | Details |
 |----------|---------|
-| **Spatial Optimization** | Grid-based indexing provides O(1) lookup for proximity checks. Without this, the app would slow down exponentially as points accumulate. |
+| **Grid Optimization** | Grid-based indexing provides O(1) lookup for proximity checks. Without this, adding new point would slow down exponentially as points accumulate. |
 | **Dual Database Architecture** | IndexedDB + PostgreSQL pattern works excellently for offline-first mobile apps with sync capabilities. |
-| **Capacitor Bridge** | Building as a web app with Capacitor provides excellent dev velocity while accessing native GPS features. |
 | **PostGIS** | Using geometry types with ST_MakePoint and SRID 4326 enables proper geographic data storage and future spatial queries. |
 
 ### What This Project Tought Us
 
 - Modern JavaScript frameworks (React) and build tools (Vite)
 - Geographic information systems and spatial databases
-- Mobile development patterns and offline-first architecture
+- Development patterns and offline-first architecture
 - RESTful API design with authentication
 - Performance optimization through algorithmic improvements
 - Docker containerization for databases
 
 ---
 
-## 10. Installation Instructions
+## 9. Installation Instructions
 
 ### Prerequisites
 
