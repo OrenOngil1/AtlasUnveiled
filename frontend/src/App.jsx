@@ -378,10 +378,6 @@ export default function App() {
                 >
                     📍
                 </button>
-                {/* Point counter (minimal, not a full status bar) */}
-                <div className="point-counter">
-                    {exploredPoints?.length || 0} points
-                </div>
             </div>
         </div>
     )
