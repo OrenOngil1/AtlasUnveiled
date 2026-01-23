@@ -19,6 +19,20 @@ const authenticateToken = (secret: string) => {
     };
 };
 
+/**
+ * Authenticates requests using JWT access token from Authorization header
+ * Attaches userId to request object if valid
+ * @throws {UnauthorizedError} if token missing, invalid, or expired
+ */
+export const authenticateAccessToken = authenticateToken(process.env.SECRET_ACCESS!);
+
+/**
+ * Authenticates requests using JWT refresh token from Authorization header
+ * Attaches userId to request object if valid
+ * @throws {UnauthorizedError} if token missing, invalid, or expired
+ */
+export const authenticateRefreshToken = authenticateToken(process.env.SECRET_REFRESH!);
+
 const validateUserId = (sub: string | undefined): number => {
     if(!sub) {
         throw new ValidationError("User ID missing from token");
@@ -36,7 +50,3 @@ const validateUserId = (sub: string | undefined): number => {
 
     return numValue;
 };
-
-export const authenticateAccessToken = authenticateToken(process.env.SECRET_ACCESS!);
-
-export const authenticateRefreshToken = authenticateToken(process.env.SECRET_REFRESH!);

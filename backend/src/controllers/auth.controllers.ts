@@ -1,6 +1,11 @@
 import type { Request, Response, NextFunction } from "express";
-import { createUserService, loginUserService, logoutUserService, refreshAccessTokenService, resetPasswordService } from "../services/auth.services";
+import { createUserService, getPasswordRulesService, loginUserService, logoutUserService, refreshAccessTokenService, resetPasswordService } from "../services/auth.services";
 import type { AuthenticatedRequest, LoginRequest } from "../utilities/utilities";
+
+export const getPasswordRulesController = async(req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const rules = await getPasswordRulesService();
+    res.json({ rules });
+}
 
 export const createUserController = async(req: Request<{}, {}, LoginRequest>, res: Response, next: NextFunction): Promise<void> => {
     const { username, password } = req.body;

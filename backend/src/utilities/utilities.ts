@@ -1,5 +1,4 @@
 import type { Request } from "express";
-
 export interface User {
     id: number
     name: string
@@ -20,7 +19,6 @@ export interface LoginRequest {
     password: string;
 }
 
-
 export interface Point {
     x: number;
     y: number;
@@ -33,6 +31,12 @@ export interface TimestampedPoint extends Point {
 export interface AuthenticatedRequest extends Request {
     userId?: number;
 };
+
+export interface ClientRule {
+    type: "minLength" | "requireUppercase" | "requireLowercase" | "requireNumber" | "requireSpecial";
+    value: number | boolean;
+    message: string;
+}
 
 export const isStringNumeric = (str: string): boolean => /^\d+$/.test(str);
 

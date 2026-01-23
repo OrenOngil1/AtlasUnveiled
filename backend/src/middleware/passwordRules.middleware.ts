@@ -1,25 +1,50 @@
-const rules = [
+import type { ClientRule } from "../utilities/utilities";
+
+
+type Rule = ClientRule & {
+    check: (password: string, value?: number | boolean) => boolean;
+};
+
+export const rules: Rule[] = [
     {
-        check: (str: string): boolean => str.length >= 8,
-        message: "Password must be at least 8 characters long"
+        type: "minLength",
+        value: 8,
+        message: 'At least 8 characters',
+        check: (str: string, value?: number | boolean): boolean => str.length >= (value as number)
     },
     {
-        check: (str: string): boolean => /[A-Z]/.test(str),
-        message: "Password must contain at least one uppercase letter"
+        type: "requireUppercase",
+        value: true,
+        message: 'One uppercase letter (A-Z)',
+        check: (str: string): boolean => /[A-Z]/.test(str)
     },
     {
-        check: (str: string): boolean => /[a-z]/.test(str),
-        message: "Password must contain at least one lowercase letter"
+        type: "requireLowercase",
+        value: true,
+        message: 'One lowercase letter (a-z)',
+        check: (str: string): boolean => /[a-z]/.test(str)
     },
     {
-        check: (str: string): boolean => /\d/.test(str),
-        message: "Password must contain at least one digit"
+        type: "requireNumber",
+        value: true,
+        message: 'One number (0-9)',
+        check: (str: string): boolean => /\d/.test(str)
+    },
+    {
+        type: "requireSpecial",
+        value: true,
+        message: 'One special character',
+        check: (str: string): boolean => /[!@#$%^&*(),.?":{}|<>]/.test(str)
     }
 ];
 
-// validates password strength against defined rules
+/**
+ * Validates password strength against defined rules
+ * @param {string} password - Password to validate
+ * @returns {string[]} Array of error messages for failed rules (empty if valid)
+ */
 export const validatePasswordStrength = (password: string): string[] => {
     return rules
-        .filter(rule => !rule.check(password)) // filter rules that the password does not satisfy
+        .filter(rule => !rule.check(password, rule.value)) // filter rules that the password does not satisfy
         .map(rule => rule.message); // return the respective error messages
 };

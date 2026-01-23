@@ -6,38 +6,14 @@ import authRoutes from "./routes/auth.routes";
 import errorHandler  from "./middleware/errorHandler.middleware";
 import { pool } from "./db/connection";
 import { deleteExpiredRefreshTokensModel } from "./models/refreshTokens.models";
+import corsOptions from "./config/cors.config";
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-// CORS Configuration
-// Allow requests from common frontend development ports
-const allowedOrigins = [
-    'http://localhost:3000',
-    'http://localhost:5173',  // Vite default
-    'http://localhost:5174',
-    'http://localhost:8080',
-    'http://localhost:4173',  // Vite preview
-    'http://127.0.0.1:5173',
-    'http://127.0.0.1:3000',
-];
-
-app.use(cors({
-    origin: function (origin, callback) {
-        // Allow requests with no origin (like mobile apps or curl requests)
-        if (!origin) return callback(null, true);
+// CORS Middleware
+app.use(cors(corsOptions));
         
-        if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
-            callback(null, true);
-        } else {
-            callback(new Error('Not allowed by CORS'));
-        }
-    },
-    credentials: true, // Allow cookies/auth headers
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-}));
-
 // Parse JSON Requests
 app.use(express.json());
 

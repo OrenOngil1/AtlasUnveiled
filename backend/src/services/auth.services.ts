@@ -1,11 +1,28 @@
 import { db } from "../db/connection";
-import { ConflictError, ExpiredSessionError, NotFoundError, UnauthorizedError } from "../middleware/errorHandler.middleware";
+import { ConflictError, NotFoundError, UnauthorizedError } from "../middleware/errorHandler.middleware";
 import { addRefreshTokenModel, deleteRefreshTokenModel, getValidRefreshTokenModel } from "../models/refreshTokens.models";
 import { addUserModel, getUserByIdModel, getUserByNameModel, resetPasswordModel } from "../models/user.models";
 import { compareHash, hash } from "../utilities/hash";
 import { generateAccessAndRefreshTokens, generateAccessToken, getTokenExpiry } from "../utilities/token";
-import type { AuthenticatedUser } from "../utilities/utilities";
+import type { AuthenticatedUser, ClientRule } from "../utilities/utilities";
+import { rules } from "../middleware/passwordRules.middleware";
 
+
+/** * Retrieves password rules for client-side validation
+ * @returns {Promise<ClientRule[]>} array of password rules
+ */
+export const getPasswordRulesService = async(): Promise<ClientRule[]> => {
+    return rules.map(rule => ({ type: rule.type, value: rule.value, message: rule.message }));
+};
+
+/**
+ * Creates a new user account with authentication tokens
+ * @param {string} username - unique username for new account
+ * @param {string} password - plaintext password to be hashed
+ * @returns {Promise<AuthenticatedUser>} user data with access and refresh tokens
+ * @throws {ConflictError} if username already exists
+ * @throws {Error} if token generation or database operation fails
+ */
 export const createUserService = async(username: string, password: string): Promise<AuthenticatedUser> => {
     // usernames must be unique
     if(await getUserByNameModel(username)) {
@@ -30,6 +47,14 @@ export const createUserService = async(username: string, password: string): Prom
     });
 };
 
+/**
+ * Authenticates user and generates session tokens
+ * @param {string} username - username to authenticate
+ * @param {string} password - plaintext password to verify
+ * @returns {Promise<AuthenticatedUser>} user data with access and refresh tokens
+ * @throws {UnauthorizedError} if credentials are invalid
+ * @throws {Error} if token generation or database operation fails
+ */
 export const loginUserService = async(username: string, password: string): Promise<AuthenticatedUser> => {
     // checks if user exists
     const user = await getUserByNameModel(username);
@@ -38,15 +63,15 @@ export const loginUserService = async(username: string, password: string): Promi
     }
 
     // compares passwords
-    if(!await compareHash(password, user.hashedPassword)) {
+    const isPasswordValid = await compareHash(password, user.hashedPassword);
+    if(!isPasswordValid) {
         throw new UnauthorizedError('username or password are incorrect');
     }
 
-    // generate tokens
+    // generates tokens
     const { accessToken, refreshToken } = generateAccessAndRefreshTokens(user.id);
 
-    // store refresh token
-    const hashedToken = await hash(refreshToken);
+    // stores hashed refresh token
     const refreshTokenExpiry = getTokenExpiry(refreshToken);
     if(!refreshTokenExpiry) {
         throw new Error("Could not get refresh token expiry");
@@ -54,13 +79,21 @@ export const loginUserService = async(username: string, password: string): Promi
 
     await db.transaction(async(_) => {
         await deleteRefreshTokenModel(user.id); // delete old token if exists
-        await addRefreshTokenModel(user.id, hashedToken, refreshTokenExpiry);
+        await addRefreshTokenModel(user.id, await hash(refreshToken), refreshTokenExpiry);
     });
 
     // console.log(`user=${JSON.stringify(user)} logged in`);
-    return { user: user, accessToken: accessToken, refreshToken: refreshToken };
-}
+    return { user: { id: user.id , name: user.name }, accessToken: accessToken, refreshToken: refreshToken };
+};
 
+
+/**
+ * Logs out user by invalidating refresh token
+ * @param {number} userId - ID of user to logout
+ * @returns {Promise<void>}
+ * @throws {NotFoundError} if user does not exist
+ * @throws {Error} if database operation fails
+ */
 export const logoutUserService = async(userId: number): Promise<void> => {
     const user = await getUserByIdModel(userId);
 
@@ -73,6 +106,14 @@ export const logoutUserService = async(userId: number): Promise<void> => {
     // console.log(`user${JSON.stringify(user)} logged out`);
 }
 
+/**
+ * Generates new access token from valid refresh token
+ * @param {number} userId - ID of user requesting token refresh
+ * @returns {Promise<string>} new access token
+ * @throws {NotFoundError} if user does not exist
+ * @throws {UnauthorizedError} if refresh token expired or not found
+ * @throws {Error} if token generation fails
+ */
 export const refreshAccessTokenService = async(userId: number): Promise<string> => {
     // checks if user exists
     const user = await getUserByIdModel(userId);
@@ -83,13 +124,20 @@ export const refreshAccessTokenService = async(userId: number): Promise<string> 
     // local refresh token mustn't be expired
     const refreshToken = await getValidRefreshTokenModel(userId);
     if(!refreshToken) {
-        throw new ExpiredSessionError();
+        throw new UnauthorizedError("Session expired");
     }
 
     return generateAccessToken(userId);
 };
 
-
+/**
+ * Resets user password
+ * @param {string} username - username of account to update
+ * @param {string} newPassword - new plaintext password
+ * @returns {Promise<void>}
+ * @throws {NotFoundError} if user does not exist
+ * @throws {Error} if hashing or database operation fails
+ */
 export const resetPasswordService = async(username: string, newPassword: string): Promise<void> => {
     // checks if user exists
     const user = await getUserByNameModel(username);

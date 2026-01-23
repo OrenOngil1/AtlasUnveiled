@@ -1,38 +1,45 @@
-import { useState } from 'react';
-import { loginUser, registerUser, fetchUserCoordinates } from '../services/apiService';
+import { useEffect, useState } from 'react';
+import { getPasswordRules, loginUser, registerUser, fetchUserCoordinates } from '../services/apiService';
 
-const PASSWORD_REQUIREMENTS = {
-    minLength: 8,
-    requireUppercase: true,
-    requireLowercase: true,
-    requireNumber: true,
-    requireSpecial: true,
-};
+// Default password requirements if fetching fails
+const DEFAULT_RULES = [
+    { type: 'minLength', value: 8, message: 'At least 8 characters' },
+    { type: 'requireUppercase', value: true, message: 'One uppercase letter (A-Z)' },
+    { type: 'requireLowercase', value: true, message: 'One lowercase letter (a-z)' },
+    { type: 'requireNumber', value: true, message: 'One number (0-9)' },
+    { type: 'requireSpecial', value: true, message: 'One special character' }
+];
+
+// Password requirements configuration
+const validators = {
+    minLength: (password, value) => password.length >= value,
+    requireUppercase: (password) => /[A-Z]/.test(password),
+    requireLowercase: (password) => /[a-z]/.test(password),
+    requireNumber: (password) => /[0-9]/.test(password),
+    requireSpecial: (password) => /[!@#$%^&*(),.?":{}|<>]/.test(password),
+}
 
 // Validate password strength on frontend
-function validatePassword(password) {
-    const errors = [];
-    if (password.length < PASSWORD_REQUIREMENTS.minLength) {
-        errors.push(`At least ${PASSWORD_REQUIREMENTS.minLength} characters`);
-    }
-    if (PASSWORD_REQUIREMENTS.requireUppercase && !/[A-Z]/.test(password)) {
-        errors.push('One uppercase letter (A-Z)');
-    }
-    if (PASSWORD_REQUIREMENTS.requireLowercase && !/[a-z]/.test(password)) {
-        errors.push('One lowercase letter (a-z)');
-    }
-    if (PASSWORD_REQUIREMENTS.requireNumber && !/[0-9]/.test(password)) {
-        errors.push('One number (0-9)');
-    }
-    if (PASSWORD_REQUIREMENTS.requireSpecial && !/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
-        errors.push('One special character (!@#$%^&*...)');
-    }
-    return errors;
+function validatePassword(password, rules) {
+    return rules
+        .filter(rule => !validators[rule.type](password, rule.value))
+        .map(rule => rule.message);
 }
 
 // Check if password is strong enough
-function isPasswordStrong(password) {
-    return validatePassword(password).length === 0;
+function isPasswordStrong(password, rules = []) {
+    return validatePassword(password, rules).length === 0;
+}
+
+async function fetchRules() {
+    try {
+        const rules = await getPasswordRules();
+        console.log('Password rules fetched:', rules);
+        return rules || DEFAULT_RULES;
+    } catch (err) {
+        console.error('Failed to fetch password rules:', err);
+        return DEFAULT_RULES;
+    }
 }
 
 export default function LoginScreen({ onLoginSuccess }) {
@@ -42,14 +49,23 @@ export default function LoginScreen({ onLoginSuccess }) {
     const [error, setError] = useState('');
     const [passwordErrors, setPasswordErrors] = useState([]);
     const [isRegisterMode, setIsRegisterMode] = useState(false);
+    const [passwordRules, setPasswordRules] = useState([]);
     const [showPasswordRequirements, setShowPasswordRequirements] = useState(false);
+
+    // Fetch password rules once when switching to register mode
+    useEffect(() => {
+        if (isRegisterMode && passwordRules.length === 0) {
+            fetchRules().then(setPasswordRules);
+        }
+    }, [isRegisterMode, passwordRules.length]);
+
     // Handle password input change
     const handlePasswordChange = (e) => {
         const newPassword = e.target.value;
         setPassword(newPassword);
         // Only validate in register mode
         if (isRegisterMode && newPassword.length > 0) {
-            const errors = validatePassword(newPassword);
+            const errors = validatePassword(newPassword, passwordRules);
             setPasswordErrors(errors);
             setShowPasswordRequirements(true);
         } else {
@@ -62,7 +78,7 @@ export default function LoginScreen({ onLoginSuccess }) {
         setError('');
         // Frontend validation for registration
         if (isRegisterMode) {
-            if (!isPasswordStrong(password)) {
+            if (!isPasswordStrong(password, passwordRules)) {
                 setError('Please fix the password requirements below');
                 return;
             }
@@ -208,21 +224,14 @@ export default function LoginScreen({ onLoginSuccess }) {
                         <div className="password-requirements">
                             <p className="requirements-title">Password must have:</p>
                             <ul className="requirements-list">
-                                <li className={password.length >= PASSWORD_REQUIREMENTS.minLength ? 'met' : 'unmet'}>
-                                    {password.length >= PASSWORD_REQUIREMENTS.minLength ? '✓' : '○'} At least {PASSWORD_REQUIREMENTS.minLength} characters
-                                </li>
-                                <li className={/[A-Z]/.test(password) ? 'met' : 'unmet'}>
-                                    {/[A-Z]/.test(password) ? '✓' : '○'} One uppercase letter (A-Z)
-                                </li>
-                                <li className={/[a-z]/.test(password) ? 'met' : 'unmet'}>
-                                    {/[a-z]/.test(password) ? '✓' : '○'} One lowercase letter (a-z)
-                                </li>
-                                <li className={/[0-9]/.test(password) ? 'met' : 'unmet'}>
-                                    {/[0-9]/.test(password) ? '✓' : '○'} One number (0-9)
-                                </li>
-                                <li className={/[!@#$%^&*(),.?":{}|<>]/.test(password) ? 'met' : 'unmet'}>
-                                    {/[!@#$%^&*(),.?":{}|<>]/.test(password) ? '✓' : '○'} One special character
-                                </li>
+                                {passwordRules.map((rule, index) => {
+                                    const isMet = validators[rule.type](password, rule.value);
+                                    return (
+                                        <li key={index} className={` ${isMet ? 'met' : 'unmet'}`}>
+                                            {isMet ? '✓' : '○'} {rule.message}
+                                        </li>
+                                    );
+                                })}
                             </ul>
                         </div>
                     )}

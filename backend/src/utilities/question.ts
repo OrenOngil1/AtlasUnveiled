@@ -5,6 +5,11 @@ const rl = createInterface({
     output: process.stdout
 });
 
+/**
+ * Prompts user for input via readline
+ * @param {string} question - Question to display
+ * @returns {Promise<string>} User's input
+ */
 const question = (question: string): Promise<string> => 
     new Promise((resolve) => {
         rl.question(question, (answer: string) => {

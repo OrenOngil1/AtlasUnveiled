@@ -17,5 +17,5 @@ export const discoveredCoordinatesTable = pgTable("discovered_coordinates", {
 export const refreshTokensTable = pgTable("refresh_tokens", {
     userId: integer("user_id").notNull().references(() => usersTable.id).primaryKey(),
     hashedToken: text("hashed_token").notNull(),
-    expiredAt: timestamp("expired_at", { mode: "date" }).notNull()
+    expiredAt: timestamp("expired_at", { mode: "date" }).notNull() // milliseconds
 });

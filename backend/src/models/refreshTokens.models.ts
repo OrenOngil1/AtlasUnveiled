@@ -9,13 +9,14 @@ export const addRefreshTokenModel = async(userId: number, hashedToken: string, e
 export const getValidRefreshTokenModel = async(userId: number): Promise<string | undefined> => {
     const currentTime = new Date();
 
-    return await db.query.refreshTokensTable.findFirst({
-        where: and(
+    return await db.select({ hashedToken: refreshTokensTable.hashedToken })
+        .from(refreshTokensTable)
+        .where(and(
             eq(refreshTokensTable.userId, userId),
             gt(refreshTokensTable.expiredAt, currentTime)
-        )
-    })
-    .then(tokenRecord => tokenRecord?.hashedToken);
+        ))
+        .limit(1)
+        .then(rows => rows[0]?.hashedToken);
 };
 
 export const deleteRefreshTokenModel = async(userId: number): Promise<void> => {

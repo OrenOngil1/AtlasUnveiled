@@ -2,7 +2,6 @@ import { db } from "../db/connection";
 import { usersTable } from "../db/schema";
 import { eq } from "drizzle-orm";
 import type { User, UserAccount } from "../utilities/utilities";
-// TODO: implement use of JWT
 
 // Returns user data WITHOUT password (safe for general use)
 export const getUserByIdModel = async(id: number): Promise<User | undefined> => {

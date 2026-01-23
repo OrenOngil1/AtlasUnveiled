@@ -25,6 +25,21 @@ export function clearTokens() {
     localStorage.removeItem(REFRESH_TOKEN_KEY);
 }
 
+// Fetch password rules from backend
+export async function getPasswordRules() {
+    const response = await fetch(`${API_BASE_URL}/auth/password-rules`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+    });
+    if (!response.ok) {
+        throw new Error('Failed to fetch password rules');
+    }
+
+    const data = await response.json();
+    return data.rules;
+}
+
+// Login user
 export async function loginUser(username, password) {
     const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
@@ -74,7 +89,7 @@ export async function logoutUser() {
     if (!token) {
         return;
     }
-    const response = await fetch(`${API_BASE_URL}/auth/logout`, {
+    const response = await fetchWithRetry(`${API_BASE_URL}/auth/logout`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -89,13 +104,34 @@ export async function logoutUser() {
     return true;
 }
 
+// Refresh access token using refresh token
+export async function refreshAccessToken() {
+    const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
+    if (!refreshToken) {
+        throw new Error('No refresh token available');
+    }
+    const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${refreshToken}`,
+        },
+    });
+    if (!response.ok) {
+        clearTokens();
+        throw new Error('Session expired, please log in again');
+    }
+    const data = await response.json();
+    setAccessToken(data.accessToken);
+}
+
 //Fetch user's explored coordinates from backend
 export async function fetchUserCoordinates() {
     const token = getAccessToken();
     if (!token) {
         throw new Error('Not authenticated');
     }
-    const response = await fetch(`${API_BASE_URL}/coordinates/me`, {
+    const response = await fetchWithRetry(`${API_BASE_URL}/coordinates/me`, {
         method: 'GET',
         headers: {
             'Content-Type': 'application/json',
@@ -105,7 +141,7 @@ export async function fetchUserCoordinates() {
     if (!response.ok) {
         if (response.status === 401) {
             clearTokens();
-            throw new Error('Authentication expired');
+            throw new Error('Session expired, please log in again');
         }
         if (response.status === 404) {
             return []; // No coordinates found, return empty array
@@ -133,7 +169,7 @@ export async function saveCoordinatesToBackend(coordinates) {
         throw new Error('Not authenticated');
     }
     console.log(`saveCoordinatesToBackend: Attempting to save ${coordinates.length} coordinates`);
-    const response = await fetch(`${API_BASE_URL}/coordinates/me`, {
+    const response = await fetchWithRetry(`${API_BASE_URL}/coordinates/me`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -146,7 +182,7 @@ export async function saveCoordinatesToBackend(coordinates) {
         console.error('saveCoordinatesToBackend: Failed response:', response.status, errorText);
         if (response.status === 401) {
             clearTokens();
-            throw new Error('Authentication expired');
+            throw new Error('Session expired');
         }
         if (response.status === 404) {
             throw new Error('User not found');
@@ -165,7 +201,7 @@ export async function deleteUserCoordinates() {
         throw new Error('Not authenticated');
     }
     console.log('deleteUserCoordinates: Deleting existing coordinates');
-    const response = await fetch(`${API_BASE_URL}/coordinates/me`, {
+    const response = await fetchWithRetry(`${API_BASE_URL}/coordinates/me`, {
         method: 'DELETE',
         headers: {
             'Content-Type': 'application/json',
@@ -177,7 +213,7 @@ export async function deleteUserCoordinates() {
         console.error('deleteUserCoordinates: Failed response:', response.status, errorText);
         if (response.status === 401) {
             clearTokens();
-            throw new Error('Authentication expired');
+            throw new Error('Session expired');
         }
         if (response.status === 404) {
             console.log('deleteUserCoordinates: No coordinates to delete (404)');
@@ -188,6 +224,20 @@ export async function deleteUserCoordinates() {
     const result = await response.json();
     console.log('deleteUserCoordinates: Successfully deleted coordinates');
     return result;
+}
+
+// Fetch with automatic token refresh on 401 response
+export async function fetchWithRetry(url, options = {}) {
+    let response = await fetch(url, options);
+    if (response.status === 401) {
+        await refreshAccessToken();
+        const token = getAccessToken();
+        if (token) {
+            options.headers['Authorization'] = `Bearer ${token}`;
+            response = await fetch(url, options);
+        }
+    }
+    return response;
 }
 
 export function setApiBaseUrl(url) {

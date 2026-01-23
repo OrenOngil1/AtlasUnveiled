@@ -3,9 +3,9 @@ import { db } from "../db/connection";
 import { discoveredCoordinatesTable } from "../db/schema";
 import type { Point, TimestampedPoint } from "../utilities/utilities";
 
-export const addUserCoordinatesModel = async(userId: number, CoordinatesList: TimestampedPoint[]): Promise<Point[]> => {
+export const addUserCoordinatesModel = async(userId: number, CoordinatesList: TimestampedPoint[]): Promise<void> => {
     if (!CoordinatesList || CoordinatesList.length === 0) {
-        return [];
+        return;
     }
 
     // Insert coordinates individually with ON CONFLICT DO NOTHING
@@ -41,8 +41,6 @@ export const addUserCoordinatesModel = async(userId: number, CoordinatesList: Ti
     } else {
         console.log(`[MODEL] Successfully inserted ${inserted.length} coordinates for user ${userId}`);
     }
-    
-    return inserted;
 };
 
 export const getUserCoordinatesModel = async(userId: number): Promise<Point[]> => {
@@ -55,12 +53,7 @@ export const getUserCoordinatesModel = async(userId: number): Promise<Point[]> =
     return coordinatesList;
 };
 
-export const deleteUserCoordinatesModel = async(userId: number): Promise<Point[]> => {
-    const rows = await db.delete(discoveredCoordinatesTable)
-            .where(eq(discoveredCoordinatesTable.userId, userId))
-            .returning();
-
-    const coordinatesDeleted = rows.map(r => r.coordinates);
-    // console.log(`deleted for user=${userId} coordinates list=${coordinatesDeleted}`);
-    return coordinatesDeleted;
+export const deleteUserCoordinatesModel = async(userId: number): Promise<void> => {
+    await db.delete(discoveredCoordinatesTable)
+            .where(eq(discoveredCoordinatesTable.userId, userId));
 };

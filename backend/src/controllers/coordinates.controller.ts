@@ -11,17 +11,16 @@ export const getCoordinatesController = async(req: AuthenticatedRequest, res: Re
 export const addCoordinatesController = async(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     const userId = req.userId!;
     const coordinates = req.body.coordinates as TimestampedPoint[];
-    console.log(`[BACKEND] addCoordinatesController: User ${userId} saving ${coordinates?.length || 0} coordinates`);
+    console.log(`[BACKEND] Received coordinates count:`, coordinates?.length);
     if (coordinates && coordinates.length > 0) {
         console.log(`[BACKEND] First coordinate:`, coordinates[0]);
     }
-    const coordinatesAdded = await addCoordinatesService(userId, coordinates);
-    console.log(`[BACKEND] Successfully saved ${coordinatesAdded?.length || 0} coordinates`);
-    res.status(201).json(coordinatesAdded);
+    await addCoordinatesService(userId, coordinates);
+    res.status(201).json({ message: "Coordinates added successfully" });
 };
 
 export const deleteCoordinatesController = async(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     const userId = req.userId!;
-    const coordinatesDeleted = await deleteCoordinatesService(userId);
-    res.json(coordinatesDeleted);
+    await deleteCoordinatesService(userId);
+    res.json({ message: "Coordinates deleted successfully" });
 };

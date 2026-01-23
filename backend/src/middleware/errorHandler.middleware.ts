@@ -30,15 +30,6 @@ export class UnauthorizedError extends AppError {
     }
 };
 
-export class ForbiddenError extends AppError {
-    statusCode = 403;
-
-    constructor() {
-        super("Access Forbidden");
-        this.name = "ForbiddenError";
-    }
-};
-
 export class NotFoundError extends AppError {
     statusCode = 404;
 
@@ -57,15 +48,16 @@ export class ConflictError extends AppError {
     }
 };
 
-export class ExpiredSessionError extends UnauthorizedError {
-    statusCode = 401;
 
-    constructor() {
-        super("Session expired");
-        this.name = "ExpiredSessionError";
-    }
-};
-
+/**
+ * Global error handler middleware
+ * Handles AppError instances, JWT errors, and unexpected errors
+ * @param {AppError | Error} error - Error object to handle
+ * @param {Request} req - Express request object
+ * @param {Response} res - Express response object
+ * @param {NextFunction} next - Express next function
+ * @returns {void}
+ */
 export const handleError = (error: AppError | Error, req: Request, res: Response, next: NextFunction): void => {
     if(error instanceof AppError) {
         console.error(`Handled error: ${error.message}`);
@@ -80,7 +72,7 @@ export const handleError = (error: AppError | Error, req: Request, res: Response
         res.status(401).json({ message: "Token is invalid" });
         return;
     }
-
+    // Default case: unhandled error
     console.error(`Unhandled error: ${error.message}`);
     res.status(500).json({ message: "Internal Server Error" });
 };

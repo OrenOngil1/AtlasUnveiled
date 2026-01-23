@@ -5,6 +5,13 @@ import { NotFoundError } from "../middleware/errorHandler.middleware"
 import { db } from "../db/connection";
 import { deleteRefreshTokenModel } from "../models/refreshTokens.models";
 
+/**
+ * Retrieves user data by ID
+ * @param {number} userId - ID of user to retrieve
+ * @returns {Promise<User>} user object without password
+ * @throws {NotFoundError} if user does not exist
+ * @throws {Error} if database operation fails
+ */
 export const getUserService = async(userId: number): Promise<User> => {
     const user = await getUserByIdModel(userId);
     if(!user) {
@@ -14,6 +21,13 @@ export const getUserService = async(userId: number): Promise<User> => {
     return user;
 }
 
+/**
+ * Deletes user and all associated data (coordinates, tokens)
+ * @param {number} userId - ID of user to delete
+ * @returns {Promise<{message: string}>} success message
+ * @throws {NotFoundError} if user does not exist
+ * @throws {Error} if deletion transaction fails
+ */
 export const deleteUserService = async(userId: number): Promise<{ message: string }> => {
     const user = await getUserByIdModel(userId);
     if(!user) {
