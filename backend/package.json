@@ -6,8 +6,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "tsx",
-    "start": "tsx --env-file=.env src/index.ts",
-    "dev": "tsx watch --env-file=.env src/index.ts",
+    "start": "tsx --env-file=.env.local src/index.ts",
+    "dev": "tsx watch --env-file=.env.local src/index.ts",
     "db:start": "docker-compose up -d",
     "db:stop": "docker-compose down",
     "db:restart": "docker-compose restart",
@@ -15,11 +15,11 @@
     "db:reset": "docker-compose down -v && docker-compose up -d",
     "db:generate": "drizzle-kit generate --config ./drizzle.config.ts",
     "db:push": "drizzle-kit push --config ./drizzle.config.ts",
-    "db:migrate": "tsx --env-file=.env scripts/migrate.ts",
-    "db:seed": "tsx --env-file=.env scripts/seed.ts",
+    "db:migrate": "tsx --env-file=.env.local scripts/migrate.ts",
+    "db:seed": "tsx --env-file=.env.local scripts/seed.ts",
     "db:studio": "drizzle-kit studio --config ./drizzle.config.ts",
-    "db:delete_refresh_tokens": "tsx --env-file=.env scripts/delete_refresh_tokens.ts",
-    "db:generate-secrets": "tsx --env-file=.env scripts/generate_secrets.ts"
+    "db:delete_refresh_tokens": "tsx --env-file=.env.local scripts/delete_refresh_tokens.ts",
+    "db:generate-secrets": "tsx --env-file=.env.local scripts/generate_secrets.ts"
   },
   "author": "",
   "license": "ISC",
